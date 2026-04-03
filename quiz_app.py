@@ -3,74 +3,105 @@ import random
 from datetime import datetime, timedelta
 import pandas as pd
 import os
+import plotly.express as px
 import base64
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. ФУНКЦИИ ФОНА И СТИЛИЗАЦИИ ---
+# --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
-            return base64.b64encode(f.read()).decode()
+            data = f.read()
+        return base64.b64encode(data).decode()
     return None
 
-def set_page_style(file_path):
-    bin_str = get_base64_of_bin_file(file_path)
-    bg_css = f'background-image: url("data:image/png;base64,{bin_str}");' if bin_str else "background-color: #2b3023;"
-    
-    st.markdown(f'''
-    <style>
-    .stApp {{
-        {bg_css}
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
-    
-    /* БЛОКИРОВКА КОПИРОВАНИЯ */
-    * {{
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
-        user-select: none !important;
-        -webkit-touch-callout: none !important;
-    }}
-    
-    input, textarea, [data-baseweb="input"] {{
-        -webkit-user-select: text !important;
-        user-select: text !important;
-    }}
+def set_png_as_page_bg(bin_file):
+    bin_str = get_base64_of_bin_file(bin_file)
+    if bin_str:
+        page_bg_img = f'''
+        <style>
+        .stApp {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+        /* Убираем стандартные элементы управления Streamlit, чтобы сложнее было выйти */
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
+        header {{visibility: hidden;}}
+        
+        div[data-testid="stVerticalBlock"] > div {{
+            background-color: rgba(61, 68, 50, 0.85) !important;
+            padding: 25px; border-radius: 15px; 
+            border-left: 10px solid #2f3526 !important;
+            box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
+        }}
+        </style>
+        '''
+        st.markdown(page_bg_img, unsafe_allow_html=True)
 
-    /* СТИЛЬ ПЛИТОК (Контейнеров) */
-    div[data-testid="stVerticalBlock"] > div {{
-        background-color: rgba(61, 68, 50, 0.9) !important;
-        padding: 20px; 
-        border-radius: 15px; 
-        border-left: 10px solid #1a1e15 !important;
-        margin-bottom: 20px;
-        box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
-    }}
+# --- 1. НАСТРОЙКА СТРАНИЦЫ ---
+st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
+set_png_as_page_bg('background.png')
 
-    h1, h2, h3, p, label, .info-text {{
-        color: #ffffff !important;
-        font-family: 'Segoe UI', sans-serif;
-        text-shadow: 2px 2px 4px #000;
-        text-align: center;
-    }}
-    </style>
-    
-    <script>
-    document.addEventListener('contextmenu', event => event.preventDefault());
-    </script>
-    ''', unsafe_allow_html=True)
-
-# --- 2. НАСТРОЙКИ ---
-st.set_page_config(page_title="НВП: Контроль", layout="centered")
-set_page_style('background.png') # Убедитесь, что файл называется именно так
-
+# --- 2. КОНСТАНТЫ ---
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
+TEST_DURATION_MIN = 15 
 
-# --- 3. ВОПРОСЫ ---
+# --- 3. ФУНКЦИИ ---
+def save_result_to_file(data):
+    file_exists = os.path.isfile(RESULTS_FILE)
+    df = pd.DataFrame([data])
+    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
+
+def get_grade(score, total):
+    perc = (score / total) * 100
+    if perc >= 90: return "5 (Отлично)"
+    elif perc >= 75: return "4 (Хорошо)"
+    elif perc >= 50: return "3 (Удовл.)"
+    else: return "2 (Неуд.)"
+
+# --- 4. ДИЗАЙН (CSS) ---
+st.markdown("""
+    <style>
+    /* 1. Блокировка выделения на всех устройствах */
+    * {
+        -webkit-user-select: none !important;  /* Safari/Chrome iOS/Android */
+        -moz-user-select: none !important;     /* Firefox */
+        -ms-user-select: none !important;      /* IE/Edge */
+        user-select: none !important;           /* Стандарт */
+        
+        /* 2. Отключаем контекстное меню при долгом нажатии на мобильных */
+        -webkit-touch-callout: none !important; 
+    }
+
+    /* 3. Оставляем возможность вводить текст в поля (ФИО и ПИН-код) */
+    input, textarea, [data-baseweb="input"] {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+    }
+
+    /* 4. Запрещаем перетаскивание картинок (чтобы не утянули коллаж) */
+    img {
+        -webkit-user-drag: none !important;
+        user-drag: none !important;
+        pointer-events: none !important;
+    }
+    </style>
+
+    <script>
+    // Блокировка правой кнопки мыши
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // Дополнительная защита: сброс выделения при попытке
+    document.onselectstart = function() { return false; };
+    </script>
+""", unsafe_allow_html=True)
+# --- 5. ВОПРОСЫ ---
 questions_10 = [
     ("Что сделать при сигнале «Внимание всем!»?", ["Бежать на улицу", "Включить ТВ или радио", "Спрятаться в подвале", "Позвонить родным"], "Включить ТВ или радио"),
     ("Безопасное место в здании при землетрясении?", ["У окна", "В лифте", "Проем капитальных стен", "Угловая комната"], "Проем капитальных стен"),
@@ -107,64 +138,88 @@ questions_11 = [
     ("Защита от аммиака. Повязку мочат:", ["Содой", "Лимонной кислотой", "Спиртом", "Маслом"], "Лимонной кислотой")
 ]
 
-# --- 4. СОСТОЯНИЯ ---
+# --- 6. ЛОГИКА СОСТОЯНИЙ ---
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
+if 'results_saved' not in st.session_state: st.session_state.results_saved = False
 
-# --- ЭКРАН 1: ВХОД (ОБНОВЛЕННЫЙ) ---
+# --- 7. ЭКРАН 1: ВХОД ---
 if st.session_state.test_state == "login":
-    # Текст внутри плиток (создаются автоматически через div)
-    st.markdown('<div class="info-text">Преподаватель Начальной военной и технической подготовки</div>', unsafe_allow_html=True)
-    st.markdown('<div class="info-text">Семенков Денис Алексеевич</div>', unsafe_allow_html=True)
-    
-    st.markdown("<h1 style='text-align: center;'>🎖️ ЗАЧЕТ ПО НВП: ГРАЖДАНСКАЯ ОБОРОНА</h1>", unsafe_allow_html=True)
-    
-    name = st.text_input("Введите Фамилию и Имя:")
+    st.markdown("<h1 style='text-align: center; color: white;'>🎖️ ЗАЧЕТ ПО НВП: ГРАЖДАНСКАЯ ОБОРОНА</h1>", unsafe_allow_html=True)
+    name = st.text_input("Фамилия и Имя ученика:")
     u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
-    
     if st.button("НАЧАТЬ ТЕСТИРОВАНИЕ 🚀"):
         if name:
-            st.session_state.name, st.session_state.u_class = name, u_class
-            st.session_state.test_state = "testing"
+            st.session_state.name = name
+            st.session_state.u_class = u_class
             st.session_state.start_time = datetime.now()
+            st.session_state.results_saved = False
             raw_q = questions_10 if u_class == "10 класс" else questions_11
-            st.session_state.questions = random.sample(raw_q, len(raw_q))
+            shuffled = []
+            for q_text, opts, corr in random.sample(raw_q, len(raw_q)):
+                sh_opts = random.sample(opts, len(opts))
+                shuffled.append((q_text, sh_opts, corr))
+            st.session_state.questions = shuffled
+            st.session_state.test_state = "testing"
             st.rerun()
 
     with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
         pin = st.text_input("PIN:", type="password")
         if pin == TEACHER_PIN:
             if os.path.exists(RESULTS_FILE):
-                st.dataframe(pd.read_csv(RESULTS_FILE), use_container_width=True)
+                df_all = pd.read_csv(RESULTS_FILE)
+                st.dataframe(df_all, use_container_width=True)
+                if st.button("🗑️ ОЧИСТИТЬ"):
+                    os.remove(RESULTS_FILE)
+                    st.rerun()
 
-# --- ЭКРАН 2: ТЕСТИРОВАНИЕ ---
+# --- 8. ЭКРАН 2: ТЕСТИРОВАНИЕ (БЛОКИРОВКА) ---
 elif st.session_state.test_state == "testing":
-    st_autorefresh(interval=5000, key="timer")
-    rem = timedelta(minutes=15) - (datetime.now() - st.session_state.start_time)
+    # Живой таймер каждые 5 сек
+    st_autorefresh(interval=5000, key="timer_refresh")
+    
+    elapsed = datetime.now() - st.session_state.start_time
+    rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
         st.rerun()
 
-    st.write(f"👤 {st.session_state.name} | ⏳ Время: {int(rem.total_seconds()//60)} мин.")
-    
+    c1, c2 = st.columns([2, 1])
+    c1.markdown(f"### 👤 {st.session_state.name}")
+    m, s = divmod(int(rem.total_seconds()), 60)
+    c2.markdown(f"<div class='timer-box'>⏳ {m:02d}:{s:02d}</div>", unsafe_allow_html=True)
+
+    # Запрещаем выходить из теста, пока он не закончен
     user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
-        ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
+        ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
         user_ans.append(ans)
 
-    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅"):
-        if None in user_ans: st.warning("Ответьте на все вопросы!")
+    # Кнопка завершения - единственный легальный путь наружу
+    if st.button("ЗАКОНЧИТЬ И ВЫЙТИ ✅"):
+        if None in user_ans: 
+            st.error("⚠️ ВНИМАНИЕ: Вы не ответили на все вопросы! Выход заблокирован.")
         else:
             st.session_state.user_ans = user_ans
             st.session_state.test_state = "finishing"
             st.rerun()
 
-# --- ЭКРАН 4: ИТОГИ ---
+# --- 9. ЭКРАН 3: ИТОГИ ---
 elif st.session_state.test_state == "finishing":
-    score = sum(1 for i, (_, _, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
-    st.markdown(f"# Ваш результат: {score} из {len(st.session_state.questions)}")
+    score = 0
+    total = len(st.session_state.questions)
+    for i, (q, opts, corr) in enumerate(st.session_state.questions):
+        if st.session_state.user_ans[i] == corr: score += 1
     
-    if st.button("В НАЧАЛО"):
+    grade = get_grade(score, total)
+    if not st.session_state.results_saved:
+        save_result_to_file({"Дата": datetime.now().strftime("%H:%M"), "ФИО": st.session_state.name, "Класс": st.session_state.u_class, "Баллы": f"{score}/{total}", "Оценка": grade})
+        st.session_state.results_saved = True
+
+    st.markdown(f"<h1 style='text-align: center; color: white;'>Результат: {score} из {total}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align: center; color: gold;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
+    
+    if st.button("ВЕРНУТЬСЯ К НАЧАЛУ"):
         st.session_state.test_state = "login"
         st.rerun()
