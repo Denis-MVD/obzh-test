@@ -50,8 +50,8 @@ st.set_page_config(page_title="НВП Контроль", layout="centered", page
 set_design('background.png')
 
 RESULTS_FILE = "results_nvp.csv"
-TEACHER_PIN = "1234"
-TEST_TIME = 25 # Увеличил время до 25 мин, так как вопросов стало больше
+TEACHER_PIN = "2402"
+TEST_TIME = 15 # Увеличил время до 15 мин, так как вопросов стало больше
 
 # --- БАЗА ДАННЫХ (ПО 15 ВОПРОСОВ В ТЕМЕ) ---
 DATABASE = {
