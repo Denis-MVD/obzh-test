@@ -1,73 +1,59 @@
 import streamlit as st
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import os
+import plotly.express as px  # Для графиков (установится автоматически на Streamlit Cloud)
 
-# --- 1. Настройка страницы ---
-st.set_page_config(page_title="НВП: Зачет", layout="centered", page_icon="🎖️")
+# --- 1. НАСТРОЙКА СТРАНИЦЫ ---
+st.set_page_config(page_title="НВП: Система тестирования", layout="centered")
 
-# --- 2. НАСТРОЙКИ ---
+# --- 2. КОНСТАНТЫ И ФУНКЦИИ ---
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
+TEST_DURATION_MIN = 15 # Время на тест в минутах
 
 def save_result_to_file(data):
     file_exists = os.path.isfile(RESULTS_FILE)
     df = pd.DataFrame([data])
     df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
 
+def get_grade(score, total):
+    perc = (score / total) * 100
+    if perc >= 90: return "5 (Отлично)"
+    elif perc >= 70: return "4 (Хорошо)"
+    elif perc >= 50: return "3 (Удовл.)"
+    else: return "2 (Неуд.)"
+
 # --- 3. ДИЗАЙН (CSS) ---
 st.markdown("""
     <style>
     .stApp { background-color: #e8e8e8; }
-    
     div[data-testid="stVerticalBlock"] > div { 
         background-color: #3d4432 !important; 
-        padding: 25px; 
-        border-radius: 10px; 
-        border-left: 12px solid #2f3526 !important; 
-        margin-bottom: 20px;
-        box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
+        padding: 25px; border-radius: 10px; 
+        border-left: 12px solid #2f3526 !important; margin-bottom: 20px;
     }
-
-    h1, h2, h3, h4, h5, p, label, .stMarkdown, [data-testid="stMarkdownContainer"], .stRadio label {
-        color: #ffffff !important; 
-        font-family: 'Segoe UI', Tahoma, sans-serif; 
-        font-style: italic !important; 
-        font-weight: bold !important;
+    h1, h2, h3, h4, p, label, .stMarkdown, .stRadio label {
+        color: #ffffff !important; font-family: 'Segoe UI', sans-serif; 
+        font-style: italic !important; font-weight: bold !important;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
     }
-
-    .stApp h1, .stApp h2, .stApp h3 {
-        color: #2f3526 !important;
-        text-shadow: none;
-        font-style: normal !important;
-        margin-top: -40px; 
-    }
-
+    .stApp h1, .stApp h2 { color: #2f3526 !important; font-style: normal !important; text-shadow: none; }
     input, select, div[data-baseweb="select"], div[data-baseweb="input"] {
-        background-color: #2b2b2b !important; 
-        color: #ffffff !important; 
-        border: 1px solid #ffffff !important;
-        border-radius: 5px;
+        background-color: #2b2b2b !important; color: white !important; border: 1px solid white !important;
     }
-    
-    div[data-baseweb="select"] * { color: white !important; }
-
     .stButton>button { 
-        background-color: #2f3526 !important; 
-        color: #ffffff !important; 
-        font-weight: bold; 
-        font-style: italic !important;
-        border: 2px solid #ffffff !important;
-        border-radius: 5px;
-        text-transform: uppercase;
-        width: 100%;
+        background-color: #2f3526 !important; color: white !important; 
+        font-weight: bold; border: 2px solid white !important; width: 100%;
     }
+    /* Стиль таймера */
+    .timer-box { font-size: 24px; color: #ff4b4b; font-weight: bold; text-align: center; background: white; padding: 10px; border-radius: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. БАЗА ВОПРОСОВ ---
+# --- 4. ВОПРОСЫ (10 и 11 классы) ---
+# (Вопросы оставлены из вашего списка, 15 для 10 класса и 15 для 11)
 questions_10 = [
     ("Что необходимо сделать в первую очередь при получении сигнала «Внимание всем!»?", ["Бежать на улицу", "Включить телевизор или радио", "Спрятаться в подвале", "Позвонить родственникам"], "Включить телевизор или радио"),
     ("Какое место в здании считается наиболее безопасным при землетрясении?", ["Возле окна", "В лифте", "Проем капитальных внутренних стен", "Угловая комната"], "Проем капитальных внутренних стен"),
@@ -104,81 +90,108 @@ questions_11 = [
     ("Для защиты от аммиака повязку смачивают:", ["Раствором соды", "Раствором лимонной кислоты", "Спиртом", "Маслом"], "Раствором лимонной кислоты")
 ]
 
-# --- 5. Инициализация ---
-if 'test_started' not in st.session_state: st.session_state.test_started = False
-if 'test_finished' not in st.session_state: st.session_state.test_finished = False
+# --- 5. ИНИЦИАЛИЗАЦИЯ ---
+if 'test_state' not in st.session_state: st.session_state.test_state = "login"
 
 # --- 6. ЭКРАН 1: ВХОД ---
-if not st.session_state.test_started and not st.session_state.test_finished:
-    st.title("🎖️ ТЕСТИРОВАНИЕ ПО КУРСУ НВП")
-    name = st.text_input("Фамилия и Имя ученика:")
+if st.session_state.test_state == "login":
+    st.title("🎖️ ЗАЧЕТ ПО НВП / ОБЖ")
+    name = st.text_input("Фамилия и Имя:")
     u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
     
-    if st.button("ПРИСТУПИТЬ К СДАЧЕ 🚀"):
+    if st.button("НАЧАТЬ ТЕСТ 🚀"):
         if name:
-            st.session_state.user_name = name
-            st.session_state.user_class = u_class
-            base = questions_10 if u_class == "10 класс" else questions_11
-            st.session_state.shuffled_q = random.sample(base, len(base))
-            st.session_state.test_started = True
+            st.session_state.name = name
+            st.session_state.u_class = u_class
+            st.session_state.start_time = datetime.now()
+            # Выбор и перемешивание вопросов + перемешивание ответов
+            raw_q = questions_10 if u_class == "10 класс" else questions_11
+            shuffled = []
+            for q_text, opts, corr in random.sample(raw_q, len(raw_q)):
+                sh_opts = random.sample(opts, len(opts)) # Перемешиваем варианты
+                shuffled.append((q_text, sh_opts, corr))
+            st.session_state.questions = shuffled
+            st.session_state.test_state = "testing"
             st.rerun()
-        else:
-            st.error("Введите фамилию для идентификации!")
 
     st.divider()
-    with st.expander("📊 ВХОД ДЛЯ ПРЕПОДАВАТЕЛЯ"):
-        pin = st.text_input("Код доступа:", type="password")
+    with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
+        pin = st.text_input("ПИН:", type="password")
         if pin == TEACHER_PIN:
             if os.path.exists(RESULTS_FILE):
-                df_res = pd.read_csv(RESULTS_FILE)
-                st.write("### Сводная ведомость")
-                st.dataframe(df_res[["Дата", "ФИО", "Класс", "Баллы"]])
-                csv_data = df_res.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-                st.download_button("📥 СКАЧАТЬ РЕЗУЛЬТАТЫ", data=csv_data, file_name="results_nvp.csv", mime="text/csv")
+                df = pd.read_csv(RESULTS_FILE)
+                st.write("### Успеваемость")
+                # График
+                if not df.empty:
+                    fig = px.pie(df, names='Оценка', title='Распределение оценок в классе', hole=0.3)
+                    st.plotly_chart(fig)
+                st.dataframe(df[["Дата", "ФИО", "Класс", "Баллы", "Оценка"]])
+                st.download_button("📥 СКАЧАТЬ ВЕДОМОСТЬ", df.to_csv(index=False).encode('utf-8-sig'), "results.csv")
 
-# --- 7. ЭКРАН 2: ТЕСТ ---
-elif st.session_state.test_started:
-    st.subheader(f"👤 Курсант: {st.session_state.user_name} ({st.session_state.user_class})")
-    u_ans = []
-    for i, (q, opts, corr) in enumerate(st.session_state.shuffled_q):
+# --- 7. ЭКРАН 2: ТЕСТ С ТАЙМЕРОМ ---
+elif st.session_state.test_state == "testing":
+    # Расчет времени
+    elapsed = datetime.now() - st.session_state.start_time
+    remaining = timedelta(minutes=TEST_DURATION_MIN) - elapsed
+    
+    if remaining.total_seconds() <= 0:
+        st.session_state.test_state = "finishing"
+        st.rerun()
+
+    cols = st.columns([3, 1])
+    cols[0].subheader(f"👤 {st.session_state.name} ({st.session_state.u_class})")
+    cols[1].markdown(f"<div class='timer-box'>⏳ {int(remaining.total_seconds()//60)}:{int(remaining.total_seconds()%60):02d}</div>", unsafe_allow_html=True)
+
+    u_answers = []
+    for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
-        ans = st.radio("Выберите ответ:", opts, key=f"q{i}", index=None)
-        u_ans.append(ans)
-    
-    if st.button("РАПОРТ СДАТЬ ✅"):
-        if None in u_ans: 
-            st.warning("Ответьте на все вопросы!")
-        else:
-            score = 0
-            det_list = []
-            for i, (q, opts, corr) in enumerate(st.session_state.shuffled_q):
-                if u_ans[i] == corr:
-                    score += 1
-                    det_list.append(f"✅ Вопрос {i+1}: Верно")
-                else:
-                    det_list.append(f"❌ Вопрос {i+1}: Ошибка (Правильно: {corr})")
-            
-            save_result_to_file({
-                "Дата": datetime.now().strftime("%d.%m %H:%M"),
-                "ФИО": st.session_state.user_name,
-                "Класс": st.session_state.user_class,
-                "Баллы": f"{score}/{len(st.session_state.shuffled_q)}", 
-                "Детализация": "|".join(det_list)
-            })
-            st.session_state.final_score = score
-            st.session_state.last_det = det_list
-            st.session_state.test_started = False
-            st.session_state.test_finished = True
-            st.rerun()
+        ans = st.radio(f"Ответ на вопрос {i+1}:", opts, key=f"q{i}", index=None, label_visibility="collapsed")
+        u_answers.append(ans)
 
-# --- 8. ЭКРАН 3: РЕЗУЛЬТАТ ---
-elif st.session_state.test_finished:
-    st.header(f"Ваш результат: {st.session_state.final_score} из {len(st.session_state.last_det)}")
-    st.write("### Разбор ответов:")
-    for det in st.session_state.last_det:
-        if "✅" in det: st.success(det)
-        else: st.error(det)
+    if st.button("РАПОРТ СДАТЬ ✅"):
+        if None in u_answers: st.warning("Ответьте на все вопросы!")
+        else:
+            st.session_state.u_answers = u_answers
+            st.session_state.test_state = "finishing"
+            st.rerun()
     
-    if st.button("ВЕРНУТЬСЯ В НАЧАЛО"):
-        st.session_state.test_finished = False
+    st.empty() # Для автообновления таймера (в Streamlit Cloud работает по взаимодействию)
+
+# --- 8. ЭКРАН 3: ИТОГИ И РАЗБОР ---
+elif st.session_state.test_state == "finishing":
+    score = 0
+    details = []
+    total = len(st.session_state.questions)
+    
+    for i, (q, opts, corr) in enumerate(st.session_state.questions):
+        user_ans = st.session_state.u_answers[i] if i < len(st.session_state.u_answers) else "Нет ответа"
+        if user_ans == corr:
+            score += 1
+            details.append({"Вопрос": q, "Ваш ответ": user_ans, "Статус": "✅ Верно", "Правильный": corr})
+        else:
+            details.append({"Вопрос": q, "Ваш ответ": user_ans, "Статус": "❌ Ошибка", "Правильный": corr})
+    
+    grade = get_grade(score, total)
+    
+    st.header(f"РЕЗУЛЬТАТ: {score} из {total}")
+    st.subheader(f"ВАША ОЦЕНКА: {grade}")
+
+    # Сохранение
+    save_result_to_file({
+        "Дата": datetime.now().strftime("%d.%m %H:%M"),
+        "ФИО": st.session_state.name,
+        "Класс": st.session_state.u_class,
+        "Баллы": f"{score}/{total}",
+        "Оценка": grade
+    })
+
+    st.write("### 📝 ПОЛНЫЙ РАЗБОР ВОПРОСОВ:")
+    for item in details:
+        with st.expander(f"{item['Статус']} | {item['Вопрос']}"):
+            st.write(f"**Ваш ответ:** {item['Ваш ответ']}")
+            if "❌" in item['Статус']:
+                st.write(f"**Правильный ответ:** {item['Правильный']}")
+
+    if st.button("ВЫЙТИ"):
+        st.session_state.test_state = "login"
         st.rerun()
