@@ -6,7 +6,7 @@ import os
 import base64
 from streamlit_autorefresh import st_autorefresh
 
-# --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
+# --- 1. ФУНКЦИИ ДЛЯ ДИЗАЙНА ---
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
@@ -26,20 +26,25 @@ def set_png_as_page_bg(bin_file):
             background-attachment: fixed;
         }}
         
-        /* Фиксированный таймер сверху */
+        /* ЗАКРЕПЛЕННЫЙ ТАЙМЕР */
         .sticky-timer {{
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            background-color: rgba(47, 53, 38, 0.95);
-            color: #ffffff;
+            background-color: #1e2318;
+            color: #ffca28;
             text-align: center;
-            padding: 10px;
-            z-index: 9999;
-            border-bottom: 2px solid gold;
-            font-size: 20px;
+            padding: 15px 0;
+            z-index: 999999;
+            border-bottom: 3px solid #ffca28;
+            font-size: 22px;
             font-weight: bold;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.5);
+        }}
+
+        .main-content {{
+            margin-top: 70px;
         }}
 
         div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stSelectbox, .stButton, .stExpander, p, span, .stMarkdown) {{
@@ -54,15 +59,14 @@ def set_png_as_page_bg(bin_file):
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- НАСТРОЙКИ ---
+# --- 2. НАСТРОЙКИ И БАЗА ДАННЫХ ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
 set_png_as_page_bg('background.png')
 
-TEACHER_PIN = "1234"
+TEACHER_PIN = "2402"
 RESULTS_FILE = "detailed_results.csv"
 TEST_DURATION_MIN = 20 
 
-# --- БАЗА ДАННЫХ (Те же 7 тем, по 15 вопросов) ---
 DATABASE = {
     "10 класс": {
         "Тема 1: Действия в районах стихийных бедствий": [
@@ -151,21 +155,21 @@ DATABASE = {
             ("Команда «Кругом — МАРШ» поворот делается через:", ["Правое плечо", "Левое плечо", "Спину", "Прыжок"], "Левое плечо")
         ],
         "Тема 6: Ориентирование на местности без карты": [
-            ("Что такое ориентирование?", ["Компас", "Положение относительно сторон горизонта", "Поиск дома", "Чтение карты"], "Положение относительно сторон горизонта"),
             ("С какой стороны дерева растет мох?", ["Юг", "Север", "Запад", "Восток"], "Север"),
-            ("Где быстрее тает снег весной на склонах?", ["Северные", "Южные", "Везде", "На дне"], "Южные"),
             ("Муравейники расположены с какой стороны дерева?", ["Северной", "Южной", "Западной", "Восточной"], "Южной"),
             ("Алтари православных церквей обращены на:", ["Запад", "Восток", "Север", "Юг"], "Восток"),
             ("Полярная звезда всегда на:", ["Юге", "Севере", "Зените", "Востоке"], "Севере"),
             ("В полдень тень указывает на:", ["Юг", "Север", "Запад", "Восток"], "Север"),
             ("Кольца на пнях шире с:", ["Северной", "Южной", "Западной", "Восточной"], "Южной"),
-            ("Стороны горизонта — это:", ["Право/Лево", "С, Ю, В, З", "Верх/Низ", "Вперед/Назад"], "С, Ю, В, З"),
             ("Прибор для определения сторон горизонта:", ["Барометр", "Компас", "Термометр", "Часы"], "Компас"),
             ("Пологий склон муравейника обращен на:", ["Север", "Юг", "Запад", "Восток"], "Юг"),
             ("Если встать лицом к северу, за спиной будет:", ["Восток", "Юг", "Запад", "Право"], "Юг"),
             ("Если встать лицом к северу, справа будет:", ["Запад", "Восток", "Юг", "Лево"], "Восток"),
             ("Ориентирование по Луне возможно?", ["Нет", "Да", "Только в полнолуние", "Только днем"], "Да"),
-            ("По какой звезде ориентируются ночью?", ["Сириус", "Полярная", "Вега", "Марс"], "Полярная")
+            ("По какой звезде ориентируются ночью?", ["Сириус", "Полярная", "Вега", "Марс"], "Полярная"),
+            ("Где быстрее тает снег весной на склонах?", ["Северные", "Южные", "Везде", "На дне"], "Южные"),
+            ("Что такое ориентирование?", ["Компас", "Положение относительно сторон горизонта", "Поиск дома", "Чтение карты"], "Положение относительно сторон горизонта"),
+            ("Стороны горизонта — это:", ["Право/Лево", "С, Ю, В, З", "Верх/Низ", "Вперед/Назад"], "С, Ю, В, З")
         ],
         "Тема 7: Определение магнитного азимута": [
             ("Что такое азимут?", ["Расстояние", "Угол между севером и объектом", "Высота", "Маршрут"], "Угол между севером и объектом"),
@@ -188,41 +192,49 @@ DATABASE = {
     "11 класс": { "Раздел в разработке": [("Вопрос", ["Ответ"], "Ответ")] }
 }
 
-# --- ФУНКЦИИ ---
+# --- 3. ФУНКЦИИ ЛОГИКИ ---
 def save_result_to_file(data):
     file_exists = os.path.isfile(RESULTS_FILE)
     df = pd.DataFrame([data])
     df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
 
 def get_grade(score):
-    # Новая система: 8-10 (3), 11-13 (4), 14-15 (5)
     if score >= 14: return "5 (Отлично)"
     elif score >= 11: return "4 (Хорошо)"
     elif score >= 8: return "3 (Удовл.)"
     else: return "2 (Неуд.)"
 
-# --- ЛОГИКА ---
-if 'test_state' not in st.session_state: st.session_state.test_state = "login"
+# --- 4. УПРАВЛЕНИЕ СЕССИЕЙ И ЗАЩИТА ---
+if 'test_state' not in st.session_state:
+    st.session_state.test_state = "login"
 
-# --- ЭКРАН ВХОДА ---
+# Детектор обновления страницы (F5)
+if 'session_id' not in st.session_state:
+    # Если зашли первый раз в этой сессии
+    st.session_state.session_id = True
+    st.session_state.is_testing = False
+else:
+    # Если сессия уже была, но скрипт перезапустился (это F5)
+    if st.session_state.get('is_testing') and st.session_state.test_state == "testing":
+        st.session_state.test_state = "finishing"
+        st.session_state.auto_closed = True
+
+# --- 5. ЭКРАН ВХОДА ---
 if st.session_state.test_state == "login":
-    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной подготовке</h4>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ КОНТРОЛЬ ЗНАНИЙ ПО НВП</h2>", unsafe_allow_html=True)
+    st.session_state.is_testing = False
+    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin-top: 50px;'>Преподаватель по начальной военной подготовке</h4>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #ffffff;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: white;'>🎖️ КОНТРОЛЬ ЗНАНИЙ</h2>", unsafe_allow_html=True)
     
     name = st.text_input("Фамилия и Имя ученика:")
     
     st.write("### Выберите класс:")
     c1, c2 = st.columns(2)
-    if c1.button("10 КЛАСС 📘", use_container_width=True):
-        st.session_state.selected_class = "10 класс"
-    if c2.button("11 КЛАСС 📕", use_container_width=True):
-        st.session_state.selected_class = "11 класс"
+    if c1.button("10 КЛАСС 📘", use_container_width=True): st.session_state.selected_class = "10 класс"
+    if c2.button("11 КЛАСС 📕", use_container_width=True): st.session_state.selected_class = "11 класс"
 
-    if 'selected_class' in st.session_state and st.session_state.selected_class:
-        st.info(f"Выбран: {st.session_state.selected_class}")
-        themes = DATABASE[st.session_state.selected_class]
-        
+    if st.session_state.get('selected_class'):
+        themes = DATABASE.get(st.session_state.selected_class, {})
         for theme_name in themes.keys():
             if st.button(theme_name, use_container_width=True):
                 if name:
@@ -231,6 +243,7 @@ if st.session_state.test_state == "login":
                     st.session_state.theme = theme_name
                     st.session_state.start_time = datetime.now()
                     st.session_state.results_saved = False
+                    st.session_state.auto_closed = False
                     
                     raw_q = themes[theme_name]
                     shuffled = []
@@ -239,7 +252,9 @@ if st.session_state.test_state == "login":
                         shuffled.append((q_text, sh_opts, corr))
                     
                     st.session_state.questions = shuffled
+                    st.session_state.user_ans = [None] * len(shuffled)
                     st.session_state.test_state = "testing"
+                    st.session_state.is_testing = True
                     st.rerun()
                 else:
                     st.error("⚠️ Сначала введите Фамилию и Имя!")
@@ -250,59 +265,71 @@ if st.session_state.test_state == "login":
             if os.path.exists(RESULTS_FILE):
                 st.dataframe(pd.read_csv(RESULTS_FILE), use_container_width=True)
 
-# --- ЭКРАН ТЕСТИРОВАНИЯ ---
+# --- 6. ЭКРАН ТЕСТИРОВАНИЯ ---
 elif st.session_state.test_state == "testing":
     st_autorefresh(interval=1000, key="timer_refresh")
+    
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
-    # ПРИКЛЕЕННЫЙ ТАЙМЕР
+    # Таймер
     m, s = divmod(max(0, int(rem.total_seconds())), 60)
-    st.markdown(f'<div class="sticky-timer">⏳ ВРЕМЯ: {m:02d}:{s:02d} | {st.session_state.name}</div>', unsafe_allow_html=True)
-    st.write("---") # Отступ для контента под таймером
+    st.markdown(f'''
+        <div class="sticky-timer">
+            ⏱️ ОСТАЛОСЬ: {m:02d}:{s:02d} | 👤 {st.session_state.name}
+        </div>
+        <div class="main-content"></div>
+    ''', unsafe_allow_html=True)
 
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
         st.rerun()
 
-    user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
-        ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
-        user_ans.append(ans)
+        st.session_state.user_ans[i] = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
 
-    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅"):
-        if None in user_ans: st.warning("Ответьте на все вопросы!")
+    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
+        if None in st.session_state.user_ans:
+            st.warning("Ответьте на все вопросы перед завершением!")
         else:
-            st.session_state.user_ans = user_ans
             st.session_state.test_state = "finishing"
             st.rerun()
 
-# --- ЭКРАН РЕЗУЛЬТАТОВ ---
+# --- 7. ЭКРАН ИТОГОВ ---
 elif st.session_state.test_state == "finishing":
+    st.session_state.is_testing = False
+    
     score = sum(1 for i, (q, opts, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
     grade = get_grade(score)
     
     if not st.session_state.results_saved:
+        status = "Авто-завершение (F5/Время)" if st.session_state.get('auto_closed') else "Завершено"
         save_result_to_file({
-            "Дата": datetime.now().strftime("%d.%m %H:%M"), "ФИО": st.session_state.name, 
-            "Класс": st.session_state.u_class, "Тема": st.session_state.theme,
-            "Баллы": f"{score}/{len(st.session_state.questions)}", "Оценка": grade
+            "Дата": datetime.now().strftime("%d.%m %H:%M"), 
+            "ФИО": st.session_state.name, 
+            "Класс": st.session_state.u_class, 
+            "Тема": st.session_state.theme,
+            "Баллы": f"{score}/{len(st.session_state.questions)}", 
+            "Оценка": grade,
+            "Статус": status
         })
         st.session_state.results_saved = True
 
-    st.markdown(f"<h1 style='text-align: center;'>Результат: {score} из {len(st.session_state.questions)}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align: center; color: gold;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
+    if st.session_state.get('auto_closed'):
+        st.error("⚠️ Тест был принудительно завершен (обновление страницы или выход времени).")
+
+    st.markdown(f"<h1 style='text-align: center; color: white;'>Результат: {score} из 15</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align: center; color: #ffca28;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
     
-    # РАБОТА НАД ОШИБКАМИ
-    st.write("### 📝 Работа над ошибками:")
+    st.write("### 🔍 Проверка ответов:")
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         u_a = st.session_state.user_ans[i]
         if u_a == corr:
-            st.success(f"**Вопрос {i+1}:** {q}\n\n✅ Ваш ответ: {u_a}")
+            st.success(f"**Вопрос {i+1}:** {q}\n\n✅ Верно: {u_a}")
         else:
-            st.error(f"**Вопрос {i+1}:** {q}\n\n❌ Ваш ответ: {u_a}\n\n✔️ Правильный: {corr}")
+            st.error(f"**Вопрос {i+1}:** {q}\n\n❌ Ваш ответ: {u_a if u_a else 'Нет ответа'}\n\n✔️ Правильный: {corr}")
     
-    if st.button("В МЕНЮ"):
+    if st.button("ВЕРНУТЬСЯ В НАЧАЛО"):
         st.session_state.test_state = "login"
         st.rerun()
