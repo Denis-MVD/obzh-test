@@ -29,12 +29,19 @@ def set_png_as_page_bg(bin_file):
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
         
-        div[data-testid="stVerticalBlock"] > div {{
+        /* Рисуем рамку ТОЛЬКО там, где есть видимый контент */
+        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stSelectbox, .stButton, .stExpander, p, span) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
-            padding: 25px; border-radius: 15px; 
+            padding: 25px; 
+            border-radius: 15px; 
             border-left: 10px solid #2f3526 !important;
             box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+        }}
+
+        /* Полностью скрываем пустые служебные контейнеры Streamlit */
+        div[data-testid="stVerticalBlock"] > div:not(:has(*)) {{
+            display: none !important;
         }}
         </style>
         '''
@@ -62,41 +69,16 @@ def get_grade(score, total):
     elif perc >= 50: return "3 (Удовл.)"
     else: return "2 (Неуд.)"
 
-# --- 4. ДИЗАЙН (CSS) ---
+# --- 4. ДИЗАЙН И ЗАЩИТА ---
 st.markdown("""
     <style>
-    * {
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
-        user-select: none !important;
-        -webkit-touch-callout: none !important; 
-    }
-    input, textarea, [data-baseweb="input"] {
-        -webkit-user-select: text !important;
-        -moz-user-select: text !important;
-        -ms-user-select: text !important;
-        user-select: text !important;
-    }
-    img {
-        -webkit-user-drag: none !important;
-        user-drag: none !important;
-        pointer-events: none !important;
-    }
+    * { -webkit-user-select: none; user-select: none; }
+    input, [data-baseweb="input"] { -webkit-user-select: text; user-select: text; }
     .timer-box {
-        font-size: 24px;
-        font-weight: bold;
-        color: #ff4b4b;
-        text-align: center;
-        background: rgba(0,0,0,0.3);
-        padding: 10px;
-        border-radius: 10px;
+        font-size: 22px; font-weight: bold; color: #ff4b4b; text-align: center;
+        background: rgba(0,0,0,0.3); padding: 5px; border-radius: 8px;
     }
     </style>
-    <script>
-    document.addEventListener('contextmenu', event => event.preventDefault());
-    document.onselectstart = function() { return false; };
-    </script>
 """, unsafe_allow_html=True)
 
 # --- 5. ВОПРОСЫ ---
@@ -140,16 +122,13 @@ questions_11 = [
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
 if 'results_saved' not in st.session_state: st.session_state.results_saved = False
 
-# --- 7. ЭКРАН 1: ВХОД (ОБНОВЛЕННЫЙ) ---
+# --- 7. ЭКРАН 1: ВХОД ---
 if st.session_state.test_state == "login":
-    # ЗАПОЛНЯЕМ ПЕРВЫЕ ДВЕ ПЛИТКИ
+    # Контент (без пустых рамок сверху)
     st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной подготовке</h4>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
-    
-    # ТРЕТЬЯ ПЛИТКА: ЗАГОЛОВОК
     st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ ЗАЧЕТ ПО НВП:<br>ГРАЖДАНСКАЯ ОБОРОНА</h2>", unsafe_allow_html=True)
     
-    # ПОЛЯ ВВОДА
     name = st.text_input("Фамилия и Имя ученика:")
     u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
     
@@ -172,8 +151,7 @@ if st.session_state.test_state == "login":
         pin = st.text_input("PIN:", type="password")
         if pin == TEACHER_PIN:
             if os.path.exists(RESULTS_FILE):
-                df_all = pd.read_csv(RESULTS_FILE)
-                st.dataframe(df_all, use_container_width=True)
+                st.dataframe(pd.read_csv(RESULTS_FILE), use_container_width=True)
                 if st.button("🗑️ ОЧИСТИТЬ"):
                     os.remove(RESULTS_FILE)
                     st.rerun()
@@ -201,7 +179,7 @@ elif st.session_state.test_state == "testing":
 
     if st.button("ЗАКОНЧИТЬ И ВЫЙТИ ✅"):
         if None in user_ans: 
-            st.error("⚠️ ВНИМАНИЕ: Вы не ответили на все вопросы!")
+            st.error("⚠️ Ответьте на все вопросы!")
         else:
             st.session_state.user_ans = user_ans
             st.session_state.test_state = "finishing"
@@ -209,17 +187,14 @@ elif st.session_state.test_state == "testing":
 
 # --- 9. ЭКРАН 3: ИТОГИ ---
 elif st.session_state.test_state == "finishing":
-    score = 0
+    score = sum(1 for i, (q, opts, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
     total = len(st.session_state.questions)
-    for i, (q, opts, corr) in enumerate(st.session_state.questions):
-        if st.session_state.user_ans[i] == corr: score += 1
-    
     grade = get_grade(score, total)
+    
     if not st.session_state.results_saved:
         save_result_to_file({
             "Дата": datetime.now().strftime("%d.%m %H:%M"), 
             "ФИО": st.session_state.name, 
-            "Класс": st.session_state.u_class, 
             "Баллы": f"{score}/{total}", 
             "Оценка": grade
         })
