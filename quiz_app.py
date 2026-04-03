@@ -1,132 +1,146 @@
 import streamlit as st
-import random
-from datetime import datetime
 import pandas as pd
 import os
+from datetime import datetime
 
-# 1. Настройка страницы
-st.set_page_config(page_title="ОБЖ: Система контроля", layout="centered", page_icon="🎖️")
+# --- НАСТРОЙКИ СТИЛЯ (ШРИФТ И ЦВЕТ) ---
+st.set_page_config(page_title="Зачет по НВП", page_icon="🎖️")
 
-# --- НАСТРОЙКИ ---
-TEACHER_PIN = "1234"
-RESULTS_FILE = "detailed_results.csv"
-
-# Функция сохранения (теперь сохраняем и детализацию ответов)
-def save_result_to_file(data):
-    file_exists = os.path.isfile(RESULTS_FILE)
-    df = pd.DataFrame([data])
-    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
-
-# --- ДИЗАЙН (CSS) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f0f4f0; background-image: url("https://www.transparenttextures.com/patterns/pinstriped-suit.png"); }
-    div[data-testid="stVerticalBlock"] > div { background-color: #ffffff !important; padding: 15px; border-radius: 10px; border-left: 5px solid #4b5320; margin-bottom: 10px; }
-    .stTable td { color: black !important; }
-    .stTable th { background-color: #4b5320 !important; color: white !important; }
-    .stButton>button { background-color: #4b5320 !important; color: white !important; font-weight: bold; }
+    /* Основной шрифт и фон */
+    html, body, [class*="css"] {
+        font-family: 'Courier New', Courier, monospace; 
+        color: #1b261b;
+    }
+    
+    /* Заголовок в армейском стиле */
+    .stHeader h1 {
+        color: #2d3e2d !important;
+        text-transform: uppercase;
+        border-bottom: 3px solid #486348;
+        padding-bottom: 10px;
+    }
+
+    /* Кнопки: Цвет Хаки */
+    div.stButton > button {
+        background-color: #486348 !important;
+        color: white !important;
+        border: 2px solid #2b3d2b;
+        font-weight: bold;
+        width: 100%;
+        transition: 0.3s;
+    }
+
+    /* Эффект при наведении */
+    div.stButton > button:hover {
+        background-color: #2b3d2b !important;
+        color: #ffd700 !important;
+        border-color: #ffd700;
+    }
+
+    /* Стиль для вопросов */
+    .stRadio label {
+        font-size: 18px !important;
+        font-weight: bold;
+        background: #f0f2f0;
+        padding: 10px;
+        border-radius: 5px;
+    }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# 2. Инициализация
-if 'test_started' not in st.session_state: st.session_state.test_started = False
-if 'test_finished' not in st.session_state: st.session_state.test_finished = False
+# --- ЛОГИКА ТЕСТА ---
 
-# --- БАЗА ВОПРОСОВ ---
-questions_10 = [
-    ("Первое действие при сигнале 'Внимание всем!'?", ["Бежать на улицу", "Включить ТВ или радио", "Выключить свет"], "Включить ТВ или радио"),
-    ("Где безопаснее всего в здании при землетрясении?", ["В лифте", "У окна", "В дверном проеме капитальных стен"], "В дверном проеме капитальных стен"),
-    ("Что делать, если наводнение застало вас в лесу?", ["Забраться на дерево", "Выйти на открытую поляну", "Спуститься к реке"], "Забраться на дерево"),
-    ("Безопасное место в квартире при урагане?", ["Балкон", "Ванная комната или коридор", "Кухня у окна"], "Ванная комната или коридор"),
-    ("Как двигаться в зоне лесного пожара?", ["По направлению ветра", "Против ветра", "Остаться на месте"], "Против ветра"),
-    ("Что делать в снежной лавине?", ["Кричать", "Делать плавательные движения", "Сгруппироваться"], "Делать плавательные движения"),
-    ("Признак приближения цунами?", ["Резкий отлив воды", "Сильный дождь", "Туман"], "Резкий отлив воды"),
-    ("Защита дыхания при пепле?", ["Мокрая повязка", "Сухое полотенце", "Ничего"], "Мокрая повязка"),
-    ("Где нельзя прятаться при грозе?", ["В кустах", "Под одиноким деревом", "В яме"], "Под одиноким деревом"),
-    ("Что в 'тревожном чемодане'?", ["Документы, вода, еда", "Ноутбук, книги", "Посуда"], "Документы, вода, еда"),
-    ("Угроза обвала в горах?", ["Бежать вниз", "Уйти в сторону", "Спрятаться"], "Уйти в сторону"),
-    ("Подготовка дома к наводнению?", ["Открыть окна", "Вещи на чердак", "Ничего"], "Перенести ценные вещи на чердак"),
-    ("Действие после землетрясения?", ["Зайти в дом", "Проверить газ", "Включить свет"], "Проверить газ"),
-    ("Бедствие после землетрясения в море?", ["Смерч", "Цунами", "Метель"], "Цунами"),
-    ("Расстояние от упавшего столба ЛЭП?", ["3 метра", "8-10 метров", "1 метр"], "8-10 метров")
+# Список вопросов (можно добавлять свои)
+questions = [
+    {
+        "question": "Калибр автомата АК-74?",
+        "options": ["7.62 мм", "5.45 мм", "9.00 мм", "5.56 мм"],
+        "answer": "5.45 мм"
+    },
+    {
+        "question": "Что необходимо сделать в первую очередь при обнаружении кровотечения?",
+        "options": ["Дать обезболивающее", "Наложить давящую повязку или жгут", "Промыть рану водой", "Вызвать полицию"],
+        "answer": "Наложить давящую повязку или жгут"
+    }
 ]
-# Аналогично для 11 класса (для краткости используем те же вопросы или добавьте свои)
-questions_11 = questions_10 
 
-# --- ЭКРАН 1: ВХОД ---
-if not st.session_state.test_started and not st.session_state.test_finished:
-    st.title("🎖️ Военно-технический зачет")
-    name = st.text_input("Фамилия и Имя:")
-    u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
+st.title("🎖️ Итоговый зачет по НВП / ОБЖ")
+
+# Форма регистрации ученика
+with st.sidebar:
+    st.header("Данные бойца")
+    student_name = st.text_input("ФИО ученика")
+    student_class = st.text_input("Класс (например, 10А)")
     
-    if st.button("НАЧАТЬ ТЕСТ 🚀"):
-        if name:
-            st.session_state.user_name = name
-            st.session_state.user_class = u_class
-            st.session_state.shuffled_q = random.sample(questions_10 if u_class=="10 класс" else questions_11, 15)
-            st.session_state.test_started = True
-            st.rerun()
-
     st.divider()
-    with st.expander("📊 ВХОД ДЛЯ УЧИТЕЛЯ"):
-        pin = st.text_input("ПИН-код:", type="password")
-        if pin == TEACHER_PIN:
-            if os.path.exists(RESULTS_FILE):
-                df_res = pd.read_csv(RESULTS_FILE)
-                st.write("### Сводная ведомость")
-                st.table(df_res[["Дата", "ФИО", "Класс", "Баллы"]])
-                
-                st.write("### Подробный просмотр ответов")
-                selected_user = st.selectbox("Выберите ученика для проверки:", df_res["ФИО"].unique())
-                user_data = df_res[df_res["ФИО"] == selected_user].iloc[-1]
-                
-                # Восстанавливаем детализацию из строки
-                details = user_data["Детализация"].split("|")
-                for det in details:
-                    if "✅" in det: st.success(det)
-                    else: st.error(det)
-            else: st.info("Данных пока нет.")
+    # Секция для учителя (скрытая)
+    teacher_pin = st.text_input("ПИН-код для ведомости", type="password")
 
-# --- ЭКРАН 2: ТЕСТ ---
-elif st.session_state.test_started:
-    st.subheader(f"🪖 Курсант: {st.session_state.user_name}")
-    u_ans = []
-    for i, (q, opts, corr) in enumerate(st.session_state.shuffled_q):
-        st.info(f"**{i+1}.** {q}")
-        ans = st.radio("Ответ:", opts, key=f"q{i}", index=None)
-        u_ans.append(ans)
+if student_name and student_class:
+    st.info(f"К сдаче зачета допущен: {student_name} ({student_class})")
     
-    if st.button("СДАТЬ РАБОТУ ✅"):
-        if None in u_ans: st.warning("Ответьте на все вопросы!")
-        else:
-            score = 0
-            det_list = []
-            for i, (q, opts, corr) in enumerate(st.session_state.shuffled_q):
-                if u_ans[i] == corr:
-                    score += 1
-                    det_list.append(f"✅ Вопрос {i+1}: Верно ({corr})")
-                else:
-                    det_list.append(f"❌ Вопрос {i+1}: Ошибка. Ответ: {u_ans[i]}. Правильно: {corr}")
-            
-            save_result_to_file({
-                "Дата": datetime.now().strftime("%d.%m %H:%M"),
-                "ФИО": st.session_state.user_name,
-                "Класс": st.session_state.user_class,
-                "Баллы": f"{score}/15",
-                "Детализация": "|".join(det_list)
-            })
-            st.session_state.final_score = score
-            st.session_state.last_det = det_list
-            st.session_state.test_started = False
-            st.session_state.test_finished = True
-            st.rerun()
+    responses = []
+    for i, q in enumerate(questions):
+        st.subheader(f"Вопрос №{i+1}")
+        res = st.radio(q["question"], q["options"], key=f"q{i}")
+        responses.append(res)
 
-# --- ЭКРАН 3: РЕЗУЛЬТАТ И ОШИБКИ ---
-elif st.session_state.test_finished:
-    st.header(f"Ваш результат: {st.session_state.final_score} из 15")
-    for det in st.session_state.last_det:
-        if "✅" in det: st.success(det)
-        else: st.error(det)
-    if st.button("В НАЧАЛО"):
-        st.session_state.test_finished = False
-        st.rerun()
+    if st.button("ЗАВЕРШИТЬ ТЕСТ И ОТПРАВИТЬ ОТВЕТ"):
+        # Считаем баллы
+        score = 0
+        for i, q in enumerate(questions):
+            if responses[i] == q["answer"]:
+                score += 1
+        
+        percent = (score / len(questions)) * 100
+        
+        # Оценка
+        if percent >= 90: grade = "5"
+        elif percent >= 75: grade = "4"
+        elif percent >= 50: grade = "3"
+        else: grade = "2"
+
+        # Сохраняем результат
+        new_data = {
+            "Дата": datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "ФИО": student_name,
+            "Класс": student_class,
+            "Баллы": score,
+            "Процент": f"{percent}%",
+            "Оценка": grade
+        }
+        
+        df = pd.DataFrame([new_data])
+        
+        # Запись в файл (в Streamlit Cloud файлы временные, но для урока хватит)
+        if not os.path.isfile("results.csv"):
+            df.to_csv("results.csv", index=False)
+        else:
+            df.to_csv("results.csv", mode='a', header=False, index=False)
+            
+        st.success(f"Тест завершен! Ваша оценка: {grade}")
+        st.balloons()
+
+# --- СЕКЦИЯ УЧИТЕЛЯ ---
+if teacher_pin == "1234":  # Ваш ПИН-код
+    st.divider()
+    st.header("📊 Ведомость результатов")
+    if os.path.isfile("results.csv"):
+        results_df = pd.read_csv("results.csv")
+        st.dataframe(results_df)
+        
+        # Кнопка скачивания для учителя
+        csv = results_df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="📥 СКАЧАТЬ ВЕДОМОСТЬ (EXCEL)",
+            data=csv,
+            file_name=f"vedomost_nvp_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.warning("Результатов пока нет.")
+else:
+    if teacher_pin != "":
+        st.error("Неверный ПИН-код доступа!")
