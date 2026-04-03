@@ -3,7 +3,6 @@ import random
 from datetime import datetime, timedelta
 import pandas as pd
 import os
-import plotly.express as px
 import base64
 from streamlit_autorefresh import st_autorefresh
 
@@ -26,7 +25,6 @@ def set_png_as_page_bg(bin_file):
             background-position: center;
             background-attachment: fixed;
         }}
-        /* Убираем стандартные элементы управления Streamlit, чтобы сложнее было выйти */
         #MainMenu {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
@@ -36,6 +34,7 @@ def set_png_as_page_bg(bin_file):
             padding: 25px; border-radius: 15px; 
             border-left: 10px solid #2f3526 !important;
             box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
+            margin-bottom: 10px;
         }}
         </style>
         '''
@@ -66,41 +65,40 @@ def get_grade(score, total):
 # --- 4. ДИЗАЙН (CSS) ---
 st.markdown("""
     <style>
-    /* 1. Блокировка выделения на всех устройствах */
     * {
-        -webkit-user-select: none !important;  /* Safari/Chrome iOS/Android */
-        -moz-user-select: none !important;     /* Firefox */
-        -ms-user-select: none !important;      /* IE/Edge */
-        user-select: none !important;           /* Стандарт */
-        
-        /* 2. Отключаем контекстное меню при долгом нажатии на мобильных */
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
         -webkit-touch-callout: none !important; 
     }
-
-    /* 3. Оставляем возможность вводить текст в поля (ФИО и ПИН-код) */
     input, textarea, [data-baseweb="input"] {
         -webkit-user-select: text !important;
         -moz-user-select: text !important;
         -ms-user-select: text !important;
         user-select: text !important;
     }
-
-    /* 4. Запрещаем перетаскивание картинок (чтобы не утянули коллаж) */
     img {
         -webkit-user-drag: none !important;
         user-drag: none !important;
         pointer-events: none !important;
     }
+    .timer-box {
+        font-size: 24px;
+        font-weight: bold;
+        color: #ff4b4b;
+        text-align: center;
+        background: rgba(0,0,0,0.3);
+        padding: 10px;
+        border-radius: 10px;
+    }
     </style>
-
     <script>
-    // Блокировка правой кнопки мыши
     document.addEventListener('contextmenu', event => event.preventDefault());
-
-    // Дополнительная защита: сброс выделения при попытке
     document.onselectstart = function() { return false; };
     </script>
 """, unsafe_allow_html=True)
+
 # --- 5. ВОПРОСЫ ---
 questions_10 = [
     ("Что сделать при сигнале «Внимание всем!»?", ["Бежать на улицу", "Включить ТВ или радио", "Спрятаться в подвале", "Позвонить родным"], "Включить ТВ или радио"),
@@ -142,11 +140,19 @@ questions_11 = [
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
 if 'results_saved' not in st.session_state: st.session_state.results_saved = False
 
-# --- 7. ЭКРАН 1: ВХОД ---
+# --- 7. ЭКРАН 1: ВХОД (ОБНОВЛЕННЫЙ) ---
 if st.session_state.test_state == "login":
-    st.markdown("<h1 style='text-align: center; color: white;'>🎖️ ЗАЧЕТ ПО НВП: ГРАЖДАНСКАЯ ОБОРОНА</h1>", unsafe_allow_html=True)
+    # ЗАПОЛНЯЕМ ПЕРВЫЕ ДВЕ ПЛИТКИ
+    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной подготовке</h4>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
+    
+    # ТРЕТЬЯ ПЛИТКА: ЗАГОЛОВОК
+    st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ ЗАЧЕТ ПО НВП:<br>ГРАЖДАНСКАЯ ОБОРОНА</h2>", unsafe_allow_html=True)
+    
+    # ПОЛЯ ВВОДА
     name = st.text_input("Фамилия и Имя ученика:")
     u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
+    
     if st.button("НАЧАТЬ ТЕСТИРОВАНИЕ 🚀"):
         if name:
             st.session_state.name = name
@@ -172,11 +178,9 @@ if st.session_state.test_state == "login":
                     os.remove(RESULTS_FILE)
                     st.rerun()
 
-# --- 8. ЭКРАН 2: ТЕСТИРОВАНИЕ (БЛОКИРОВКА) ---
+# --- 8. ЭКРАН 2: ТЕСТИРОВАНИЕ ---
 elif st.session_state.test_state == "testing":
-    # Живой таймер каждые 5 сек
     st_autorefresh(interval=5000, key="timer_refresh")
-    
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
@@ -189,17 +193,15 @@ elif st.session_state.test_state == "testing":
     m, s = divmod(int(rem.total_seconds()), 60)
     c2.markdown(f"<div class='timer-box'>⏳ {m:02d}:{s:02d}</div>", unsafe_allow_html=True)
 
-    # Запрещаем выходить из теста, пока он не закончен
     user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
         ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
         user_ans.append(ans)
 
-    # Кнопка завершения - единственный легальный путь наружу
     if st.button("ЗАКОНЧИТЬ И ВЫЙТИ ✅"):
         if None in user_ans: 
-            st.error("⚠️ ВНИМАНИЕ: Вы не ответили на все вопросы! Выход заблокирован.")
+            st.error("⚠️ ВНИМАНИЕ: Вы не ответили на все вопросы!")
         else:
             st.session_state.user_ans = user_ans
             st.session_state.test_state = "finishing"
@@ -214,7 +216,13 @@ elif st.session_state.test_state == "finishing":
     
     grade = get_grade(score, total)
     if not st.session_state.results_saved:
-        save_result_to_file({"Дата": datetime.now().strftime("%H:%M"), "ФИО": st.session_state.name, "Класс": st.session_state.u_class, "Баллы": f"{score}/{total}", "Оценка": grade})
+        save_result_to_file({
+            "Дата": datetime.now().strftime("%d.%m %H:%M"), 
+            "ФИО": st.session_state.name, 
+            "Класс": st.session_state.u_class, 
+            "Баллы": f"{score}/{total}", 
+            "Оценка": grade
+        })
         st.session_state.results_saved = True
 
     st.markdown(f"<h1 style='text-align: center; color: white;'>Результат: {score} из {total}</h1>", unsafe_allow_html=True)
