@@ -54,7 +54,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. ВОПРОСЫ ---
+# --- 5. БАЗА ВОПРОСОВ ---
 questions_10 = [
     ("Что сделать при сигнале «Внимание всем!»?", ["Бежать на улицу", "Включить ТВ или радио", "Спрятаться в подвале", "Позвонить родным"], "Включить ТВ или радио"),
     ("Безопасное место в здании при землетрясении?", ["У окна", "В лифте", "Проем капитальных стен", "Угловая комната"], "Проем капитальных стен"),
@@ -91,12 +91,14 @@ questions_11 = [
     ("Защита от аммиака. Повязку мочат:", ["Содой", "Лимонной кислотой", "Спиртом", "Маслом"], "Лимонной кислотой")
 ]
 
-# --- 6. ЛОГИКА ЭКРАНОВ ---
+# --- 7. ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЙ ---
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
+if 'results_saved' not in st.session_state: st.session_state.results_saved = False
 
+# --- 8. ЭКРАН 1: ВХОД ---
 if st.session_state.test_state == "login":
     st.title("🎖️ ЗАЧЕТ ПО НВП: ГРАЖДАНСКАЯ ОБОРОНА")
-    name = st.text_input("Фамилия и Имя:")
+    name = st.text_input("Фамилия и Имя ученика:")
     u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
     
     if st.button("НАЧАТЬ ТЕСТИРОВАНИЕ 🚀"):
@@ -104,14 +106,18 @@ if st.session_state.test_state == "login":
             st.session_state.name = name
             st.session_state.u_class = u_class
             st.session_state.start_time = datetime.now()
+            st.session_state.results_saved = False # Сброс флага записи
+            
             raw_q = questions_10 if u_class == "10 класс" else questions_11
             shuffled = []
             for q_text, opts, corr in random.sample(raw_q, len(raw_q)):
-                sh_opts = random.sample(opts, len(opts))
+                sh_opts = random.sample(opts, len(opts)) # Рандом вариантов
                 shuffled.append((q_text, sh_opts, corr))
             st.session_state.questions = shuffled
             st.session_state.test_state = "testing"
             st.rerun()
+        else:
+            st.error("Введите фамилию!")
 
     st.divider()
     with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
@@ -120,18 +126,24 @@ if st.session_state.test_state == "login":
             if os.path.exists(RESULTS_FILE):
                 df_all = pd.read_csv(RESULTS_FILE)
                 if not df_all.empty and 'Оценка' in df_all.columns:
+                    st.write("### Успеваемость")
                     counts = df_all['Оценка'].value_counts().reset_index()
                     counts.columns = ['Оценка', 'Кол-во']
                     fig = px.pie(counts, names='Оценка', values='Кол-во', hole=0.4, 
-                                 color='Оценка', color_discrete_map={'5 (Отлично)':'#2ecc71','4 (Хорошо)':'#3498db','3 (Удовл.)':'#f1c40f','2 (Неуд.)':'#e74c3c'})
+                                 color='Оценка', color_discrete_map={
+                                     '5 (Отлично)':'#2ecc71','4 (Хорошо)':'#3498db',
+                                     '3 (Удовл.)':'#f1c40f','2 (Неуд.)':'#e74c3c'})
                     st.plotly_chart(fig)
-                    st.dataframe(df_all[["Дата", "ФИО", "Класс", "Баллы", "Оценка"]])
+                    st.dataframe(df_all[["Дата", "ФИО", "Класс", "Баллы", "Оценка"]], use_container_width=True)
                     st.download_button("📥 СКАЧАТЬ ВЕДОМОСТЬ", df_all.to_csv(index=False).encode('utf-8-sig'), "results.csv")
-                else: st.info("База данных пуста.")
+                else: st.info("База данных пока пуста.")
+            else: st.warning("Файл результатов еще не создан.")
 
+# --- 9. ЭКРАН 2: ТЕСТ ---
 elif st.session_state.test_state == "testing":
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
+    
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
         st.rerun()
@@ -143,20 +155,22 @@ elif st.session_state.test_state == "testing":
     user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
-        a = st.radio(f"В{i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
+        a = st.radio(f"Вопрос {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
         user_ans.append(a)
 
     if st.button("ЗАВЕРШИТЬ РАБОТУ ✅"):
-        if None in user_ans: st.warning("Ответьте на все вопросы!")
+        if None in user_ans: st.warning("Вы ответили не на все вопросы!")
         else:
             st.session_state.user_ans = user_ans
             st.session_state.test_state = "finishing"
             st.rerun()
 
+# --- 10. ЭКРАН 3: ИТОГИ ---
 elif st.session_state.test_state == "finishing":
     score = 0
     total = len(st.session_state.questions)
     report = []
+    
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         ua = st.session_state.user_ans[i] if i < len(st.session_state.user_ans) else "Нет ответа"
         is_corr = (ua == corr)
@@ -164,14 +178,28 @@ elif st.session_state.test_state == "finishing":
         report.append({"q": q, "ua": ua, "corr": corr, "status": "✅" if is_corr else "❌"})
     
     grade = get_grade(score, total)
-    save_result_to_file({"Дата": datetime.now().strftime("%d.%m %H:%M"), "ФИО": st.session_state.name, "Класс": st.session_state.u_class, "Баллы": f"{score}/{total}", "Оценка": grade})
 
-    st.header(f"Результат: {score} из {total}")
+    # ЗАЩИТА ОТ ДВОЙНОЙ ЗАПИСИ
+    if not st.session_state.results_saved:
+        save_result_to_file({
+            "Дата": datetime.now().strftime("%d.%m %H:%M"),
+            "ФИО": st.session_state.name,
+            "Класс": st.session_state.u_class,
+            "Баллы": f"{score}/{total}",
+            "Оценка": grade
+        })
+        st.session_state.results_saved = True
+
+    st.header(f"Ваш результат: {score} из {total}")
     st.subheader(f"Оценка: {grade}")
+    
+    st.write("### Разбор заданий:")
     for r in report:
         with st.expander(f"{r['status']} {r['q']}"):
             st.write(f"**Ваш ответ:** {r['ua']}")
-            if r['status'] == "❌": st.write(f"**Правильный:** {r['corr']}")
-    if st.button("ВЫХОД"):
+            if r['status'] == "❌": 
+                st.write(f"**Правильный ответ:** {r['corr']}")
+
+    if st.button("ВЫЙТИ В НАЧАЛО"):
         st.session_state.test_state = "login"
         st.rerun()
