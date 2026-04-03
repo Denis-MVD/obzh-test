@@ -48,6 +48,7 @@ st.markdown("""
         color: #2f3526 !important;
         text-shadow: none;
         font-style: normal !important;
+        margin-top: -20px; /* Поднимаем заголовок чуть выше после удаления фото */
     }
 
     /* Поля ввода (темный фон, белый текст) */
@@ -77,17 +78,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. ИЗОБРАЖЕНИЕ АВТОМАТА (ПРЯМАЯ ССЫЛКА) ---
-# Качественный силуэт АК-74 для оформления
-AK_IMAGE_URL = "https://cdn.pixabay.com/photo/2016/11/27/21/42/ak-47-1864227_1280.png"
-st.image(AK_IMAGE_URL, width=500)
-st.write("### Военно-технический зачет")
-
-# --- 5. Инициализация состояний ---
+# --- 4. Инициализация состояний ---
 if 'test_started' not in st.session_state: st.session_state.test_started = False
 if 'test_finished' not in st.session_state: st.session_state.test_finished = False
 
-# --- 6. БАЗА ВОПРОСОВ ---
+# --- 5. БАЗА ВОПРОСОВ ---
 questions_nvp = [
     ("Первое действие при сигнале 'Внимание всем!'?", ["Бежать на улицу", "Включить ТВ или радио", "Выключить свет"], "Включить ТВ или радио"),
     ("Где безопаснее всего в здании при землетрясении?", ["В лифте", "У окна", "В дверном проеме капитальных стен"], "В дверном проеме капитальных стен"),
@@ -99,7 +94,7 @@ questions_nvp = [
     ("Ваше действие при угрозе обвала в горах?", ["Бежать вниз", "Уйти в сторону", "Спрятаться под деревом"], "Уйти в сторону")
 ]
 
-# --- 7. ЭКРАН 1: ВХОД ---
+# --- 6. ЭКРАН 1: ВХОД ---
 if not st.session_state.test_started and not st.session_state.test_finished:
     st.title("🎖️ ТЕСТИРОВАНИЕ ПО КУРСУ НВП")
     
@@ -128,7 +123,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 csv_data = df_res.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
                 st.download_button("📥 СКАЧАТЬ РЕЗУЛЬТАТЫ", data=csv_data, file_name="results_nvp.csv", mime="text/csv")
 
-# --- 8. ЭКРАН 2: ТЕСТ ---
+# --- 7. ЭКРАН 2: ТЕСТ ---
 elif st.session_state.test_started:
     st.subheader(f"👤 Курсант: {st.session_state.user_name}")
     u_ans = []
@@ -163,7 +158,7 @@ elif st.session_state.test_started:
             st.session_state.test_finished = True
             st.rerun()
 
-# --- 9. ЭКРАН 3: РЕЗУЛЬТАТ ---
+# --- 8. ЭКРАН 3: РЕЗУЛЬТАТ ---
 elif st.session_state.test_finished:
     st.header(f"Ваш результат: {st.session_state.final_score} из {len(questions_nvp)}")
     st.write("### Разбор ответов:")
