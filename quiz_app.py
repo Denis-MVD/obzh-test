@@ -1,11 +1,12 @@
 import streamlit as st
 import random
 from datetime import datetime, timedelta
+import pandas as pd
 import os
 import base64
 from streamlit_autorefresh import st_autorefresh
 
-# --- ДИЗАЙН ---
+# --- ФУНКЦИИ ИНТЕРФЕЙСА ---
 def get_base64(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
@@ -32,14 +33,24 @@ def set_design(bg_file):
     }}
     .stRadio > label {{ color: #ffffff !important; font-size: 1.1rem; font-weight: bold; }}
     .stButton > button {{ width: 100%; border-radius: 8px; font-weight: bold; height: 3em; }}
-    .err-box {{ padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid #ff4b4b; background: rgba(255, 75, 75, 0.1); }}
+    .err-card {{ background: rgba(255, 75, 75, 0.1); border: 1px solid #ff4b4b; padding: 15px; border-radius: 10px; margin-top: 10px; }}
     </style>
     ''', unsafe_allow_html=True)
 
-st.set_page_config(page_title="НВП РК: Итоговый контроль", layout="centered", page_icon="🎖️")
+st.set_page_config(page_title="НВП РК: Тестирование", layout="centered")
 set_design('background.png')
 
-# --- БАЗА ДАННЫХ (13 ТЕМ ПО 15 ВОПРОСОВ) ---
+# --- РАБОТА С ДАННЫМИ (ЖУРНАЛ) ---
+DB_FILE = "results_nvp.csv"
+if not os.path.exists(DB_FILE):
+    pd.DataFrame(columns=["Дата", "ФИО", "Класс", "Тема", "Баллы", "Оценка"]).to_csv(DB_FILE, index=False)
+
+def save_to_journal(name, cl, th, score, total, grade):
+    new_data = [[datetime.now().strftime("%d.%m.%Y %H:%M"), name, cl, th, f"{score}/{total}", grade]]
+    df = pd.DataFrame(new_data, columns=["Дата", "ФИО", "Класс", "Тема", "Баллы", "Оценка"])
+    df.to_csv(DB_FILE, mode='a', header=False, index=False)
+
+# --- ПОЛНАЯ БАЗА (13 ТЕМ ПО 15 ВОПРОСОВ) ---
 DATABASE = {
     "10 класс": {
         "1. ЧС и Стихийные бедствия": [
@@ -48,7 +59,7 @@ DATABASE = {
             ("Сель — это:", ["Снежная лавина", "Грязекаменный поток", "Сильный ветер", "Наводнение"], "Грязекаменный поток"),
             ("Действия при угрозе селя?", ["Бежать вниз", "На дерево", "В сторону, перпендикулярно потоку", "Дома"], "В сторону, перпендикулярно потоку"),
             ("Безопасная дистанция от провода ЛЭП?", ["1 метр", "3 метра", "8-10 метров", "15 метров"], "8-10 метров"),
-            ("Где укрыться при урагане в поле?", ["Под деревом", "В кювете или овраге", "За забором", "Стоять"], "В кювете или овраге"),
+            ("Где укрыться при урагане в поле?", ["Под деревом", "В кювете или овраге", "За забор", "Стоять"], "В кювете или овраге"),
             ("Что в 'тревожном чемодане' главное?", ["Ноутбук", "Документы, вода, аптечка", "Одежда", "Посуда"], "Документы, вода, аптечка"),
             ("Выход из лесного пожара:", ["По ветру", "Вглубь", "Против ветра, перпендикулярно", "На месте"], "Против ветра, перпендикулярно"),
             ("Место в квартире при урагане?", ["Балкон", "Ванная/Коридор", "Кухня", "Окно"], "Ванная/Коридор"),
@@ -268,82 +279,98 @@ DATABASE = {
     }
 }
 
-# --- ЛОГИКА ПРИЛОЖЕНИЯ ---
+# --- ОСНОВНАЯ ЛОГИКА ---
 if 'state' not in st.session_state: st.session_state.state = "login"
 if 'ans' not in st.session_state: st.session_state.ans = {}
 
 if st.session_state.state == "login":
-    st.markdown("<h3 style='text-align: center; color: white;'>🎖️ СИСТЕМА КОНТРОЛЯ ЗНАНИЙ НВП</h3>", unsafe_allow_html=True)
-    name = st.text_input("Фамилия и Имя ученика:")
+    st.markdown("<h2 style='text-align: center; color: white;'>🎖️ ИТОГОВЫЙ КОНТРОЛЬ НВП</h2>", unsafe_allow_html=True)
+    name = st.text_input("Введите Фамилию и Имя ученика:")
     
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("10 КЛАСС 📘", use_container_width=True): st.session_state.sel_cl = "10 класс"
+        if st.button("📘 10 КЛАСС", use_container_width=True): st.session_state.sel_cl = "10 класс"
     with c2:
-        if st.button("11 КЛАСС 📕", use_container_width=True): st.session_state.sel_cl = "11 класс"
+        if st.button("📕 11 КЛАСС", use_container_width=True): st.session_state.sel_cl = "11 класс"
 
     if 'sel_cl' in st.session_state:
         st.info(f"Выбран: {st.session_state.sel_cl}")
-        for t in DATABASE[st.session_state.sel_cl].keys():
-            if st.button(t, use_container_width=True):
+        for theme in DATABASE[st.session_state.sel_cl].keys():
+            if st.button(theme, use_container_width=True):
                 if name:
-                    st.session_state.u_name, st.session_state.u_cl, st.session_state.u_th = name, st.session_state.sel_cl, t
+                    st.session_state.u_name, st.session_state.u_cl, st.session_state.u_th = name, st.session_state.sel_cl, theme
                     st.session_state.start, st.session_state.ans = datetime.now(), {}
-                    raw = DATABASE[st.session_state.sel_cl][t]
-                    sh = []
-                    # Перемешиваем вопросы и ответы
-                    for q, o, c in random.sample(raw, len(raw)):
-                        sh.append((q, random.sample(o, len(o)), c))
-                    st.session_state.qs, st.session_state.state = sh, "test"
+                    raw = DATABASE[st.session_state.sel_cl][theme]
+                    shuffled = []
+                    for q, opts, corr in random.sample(raw, len(raw)):
+                        shuffled.append((q, random.sample(opts, len(opts)), corr))
+                    st.session_state.qs, st.session_state.state = shuffled, "test"
                     st.rerun()
-                else: st.error("⚠️ Введите Имя!")
+                else: st.error("⚠️ Сначала введите Имя!")
+
+    # ПАНЕЛЬ ПРЕПОДАВАТЕЛЯ (Внизу)
+    with st.expander("⚙️ ПАНЕЛЬ ПРЕПОДАВАТЕЛЯ"):
+        pin = st.text_input("Введите пароль доступа:", type="password")
+        if pin == "1234":
+            st.success("Доступ подтвержден")
+            df = pd.read_csv(DB_FILE)
+            st.dataframe(df, use_container_width=True)
+            if st.button("🗑️ Очистить журнал"):
+                pd.DataFrame(columns=["Дата", "ФИО", "Класс", "Тема", "Баллы", "Оценка"]).to_csv(DB_FILE, index=False)
+                st.rerun()
 
 elif st.session_state.state == "test":
-    st_autorefresh(1000, key="timer")
-    # ТАЙМЕР НА 16 МИНУТ
+    st_autorefresh(1000, key="timer_ref")
     rem = timedelta(minutes=16) - (datetime.now() - st.session_state.start)
     sec = max(0, int(rem.total_seconds()))
     mm, ss = divmod(sec, 60)
-    st.markdown(f'<div class="sticky-timer">⏱️ ОСТАТОК: {mm:02d}:{ss:02d}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sticky-timer">⏱️ ВРЕМЯ: {mm:02d}:{ss:02d}</div>', unsafe_allow_html=True)
     
-    if sec <= 0: st.session_state.state = "fin"; st.rerun()
+    if sec <= 0: 
+        st.session_state.state = "fin"
+        st.rerun()
 
-    st.markdown(f"👤 **{st.session_state.u_name}** | 🚩 **{st.session_state.u_th}**")
+    st.markdown(f"👤 **Ученик:** {st.session_state.u_name} | 🚩 **Тема:** {st.session_state.u_th}")
     
     for i, (q, o, c) in enumerate(st.session_state.qs):
         st.write(f"**{i+1}. {q}**")
-        st.session_state.ans[i] = st.radio(f"q{i}", o, key=f"r{i}_{len(st.session_state.qs)}", label_visibility="collapsed")
+        st.session_state.ans[i] = st.radio(f"q_{i}", o, key=f"rad_{i}", label_visibility="collapsed")
 
-    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True): st.session_state.state = "fin"; st.rerun()
+    if st.button("ЗАВЕРШИТЬ И УВИДЕТЬ РЕЗУЛЬТАТ ✅", use_container_width=True):
+        st.session_state.state = "fin"
+        st.rerun()
 
 elif st.session_state.state == "fin":
     score = sum(1 for i, (q, o, c) in enumerate(st.session_state.qs) if st.session_state.ans.get(i) == c)
     total = len(st.session_state.qs)
-    grade = "5" if score/total >= 0.9 else "4" if score/total >= 0.75 else "3" if score/total >= 0.5 else "2"
+    ratio = score/total
+    grade = "5" if ratio >= 0.9 else "4" if ratio >= 0.75 else "3" if ratio >= 0.5 else "2"
     
-    st.markdown(f"<h1 style='text-align: center; color: white;'>Результат: {score}/{total}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align: center; color: gold;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
+    # Сохранение (однократное)
+    if 'is_saved' not in st.session_state:
+        save_to_journal(st.session_state.u_name, st.session_state.u_cl, st.session_state.u_th, score, total, grade)
+        st.session_state.is_saved = True
 
-    st.markdown("### 📋 Анализ ответов")
-    
+    st.markdown(f"<h1 style='text-align: center; color: white;'>Ваш результат: {score} из {total}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align: center; color: gold;'>Итоговая оценка: {grade}</h2>", unsafe_allow_html=True)
+
+    st.markdown("### 📋 РАЗБОР ВАШИХ ОТВЕТОВ")
     for i, (q, o, c) in enumerate(st.session_state.qs):
         u_ans = st.session_state.ans.get(i)
-        is_correct = u_ans == c
+        is_corr = u_ans == c
         
         with st.container():
-            st.write(f"**{i+1}. {q}**")
-            if is_correct:
-                st.success(f"✅ Правильно: {c}")
+            if is_corr:
+                st.success(f"✅ **Вопрос {i+1}:** {q}\n\n**Ваш ответ правильный:** {u_ans}")
             else:
                 st.markdown(f"""
-                <div class='err-box'>
-                    ❌ Ваш ответ: <span style='color:#ff4b4b'>{u_ans}</span><br>
-                    ✔️ Верный ответ: <span style='color:#00ff00'>{c}</span>
+                <div class="err-card">
+                    <b>❌ Вопрос {i+1}:</b> {q}<br><br>
+                    <span style="color:#ff4b4b">Ваш ответ: {u_ans}</span><br>
+                    <span style="color:#00ff00">Правильный ответ: {c}</span>
                 </div>
                 """, unsafe_allow_html=True)
-    
-    if score == total: st.balloons()
 
-    if st.button("ВЕРНУТЬСЯ В МЕНЮ"): 
-        for k in list(st.session_state.keys()): del st.session_state[k]
+    if st.button("ВЕРНУТЬСЯ В НАЧАЛО"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
