@@ -25,10 +25,23 @@ def set_png_as_page_bg(bin_file):
             background-position: center;
             background-attachment: fixed;
         }}
-        #MainMenu {{visibility: hidden;}}
-        footer {{visibility: hidden;}}
-        header {{visibility: hidden;}}
         
+        /* Фиксированный таймер сверху */
+        .sticky-timer {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: rgba(47, 53, 38, 0.95);
+            color: #ffffff;
+            text-align: center;
+            padding: 10px;
+            z-index: 9999;
+            border-bottom: 2px solid gold;
+            font-size: 20px;
+            font-weight: bold;
+        }}
+
         div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stSelectbox, .stButton, .stExpander, p, span, .stMarkdown) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
             padding: 25px; 
@@ -37,24 +50,19 @@ def set_png_as_page_bg(bin_file):
             box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
             margin-bottom: 15px;
         }}
-
-        div[data-testid="stVerticalBlock"] > div:not(:has(*)) {{
-            display: none !important;
-        }}
         </style>
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- 1. НАСТРОЙКА СТРАНИЦЫ ---
+# --- НАСТРОЙКИ ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
 set_png_as_page_bg('background.png')
 
-# --- 2. КОНСТАНТЫ ---
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
 TEST_DURATION_MIN = 20 
 
-# --- 3. БАЗА ДАННЫХ (ВСЕ ТЕМЫ ПО ПОРЯДКУ) ---
+# --- БАЗА ДАННЫХ (Те же 7 тем, по 15 вопросов) ---
 DATABASE = {
     "10 класс": {
         "Тема 1: Действия в районах стихийных бедствий": [
@@ -93,7 +101,7 @@ DATABASE = {
         ],
         "Тема 3: ПМП при различных несчастных случаях": [
             ("Первая помощь при обмороке?", ["Дать попить", "Приподнять ноги, доступ воздуха", "Бить по щекам", "Посадить"], "Приподнять ноги, доступ воздуха"),
-            ("Помощь при солнечном ударе?", ["Горячий чай", "В тень, холод на голову", "Бегать", "Укутать"], "В тень, холод на голову"),
+            ("Помощь при солнечном ударе?", ["Горячий чай", "В тень, холод на голову", "Бежать", "Укутать"], "В тень, холод на голову"),
             ("Инородное тело в дыхательных путях:", ["Дать хлеба", "Прием Геймлиха", "На спину", "Ждать"], "Прием Геймлиха"),
             ("Первое действие при ударе током?", ["Трогать руками", "Обесточить источник", "Вызвать полицию", "Таблетку"], "Обесточить источник"),
             ("Соотношение нажатий и вдохов при СЛР?", ["15:2", "30:2", "10:1", "5:2"], "30:2"),
@@ -180,24 +188,23 @@ DATABASE = {
     "11 класс": { "Раздел в разработке": [("Вопрос", ["Ответ"], "Ответ")] }
 }
 
-# --- 4. ФУНКЦИИ ---
+# --- ФУНКЦИИ ---
 def save_result_to_file(data):
     file_exists = os.path.isfile(RESULTS_FILE)
     df = pd.DataFrame([data])
     df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
 
-def get_grade(score, total):
-    perc = (score / total) * 100
-    if perc >= 90: return "5 (Отлично)"
-    elif perc >= 75: return "4 (Хорошо)"
-    elif perc >= 50: return "3 (Удовл.)"
+def get_grade(score):
+    # Новая система: 8-10 (3), 11-13 (4), 14-15 (5)
+    if score >= 14: return "5 (Отлично)"
+    elif score >= 11: return "4 (Хорошо)"
+    elif score >= 8: return "3 (Удовл.)"
     else: return "2 (Неуд.)"
 
-# --- 5. ЛОГИКА СОСТОЯНИЙ ---
+# --- ЛОГИКА ---
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
-if 'selected_class' not in st.session_state: st.session_state.selected_class = None
 
-# --- 6. ЭКРАН ВХОДА ---
+# --- ЭКРАН ВХОДА ---
 if st.session_state.test_state == "login":
     st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной подготовке</h4>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
@@ -212,7 +219,7 @@ if st.session_state.test_state == "login":
     if c2.button("11 КЛАСС 📕", use_container_width=True):
         st.session_state.selected_class = "11 класс"
 
-    if st.session_state.selected_class:
+    if 'selected_class' in st.session_state and st.session_state.selected_class:
         st.info(f"Выбран: {st.session_state.selected_class}")
         themes = DATABASE[st.session_state.selected_class]
         
@@ -243,20 +250,21 @@ if st.session_state.test_state == "login":
             if os.path.exists(RESULTS_FILE):
                 st.dataframe(pd.read_csv(RESULTS_FILE), use_container_width=True)
 
-# --- 7. ТЕСТИРОВАНИЕ ---
+# --- ЭКРАН ТЕСТИРОВАНИЯ ---
 elif st.session_state.test_state == "testing":
-    st_autorefresh(interval=5000, key="timer_refresh")
+    st_autorefresh(interval=1000, key="timer_refresh")
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
+    # ПРИКЛЕЕННЫЙ ТАЙМЕР
+    m, s = divmod(max(0, int(rem.total_seconds())), 60)
+    st.markdown(f'<div class="sticky-timer">⏳ ВРЕМЯ: {m:02d}:{s:02d} | {st.session_state.name}</div>', unsafe_allow_html=True)
+    st.write("---") # Отступ для контента под таймером
+
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
         st.rerun()
 
-    st.markdown(f"### 👤 {st.session_state.name} | {st.session_state.theme}")
-    m, s = divmod(int(rem.total_seconds()), 60)
-    st.markdown(f"⏳ Осталось времени: **{m:02d}:{s:02d}**")
-    
     user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
@@ -270,24 +278,31 @@ elif st.session_state.test_state == "testing":
             st.session_state.test_state = "finishing"
             st.rerun()
 
-# --- 8. ИТОГИ ---
+# --- ЭКРАН РЕЗУЛЬТАТОВ ---
 elif st.session_state.test_state == "finishing":
     score = sum(1 for i, (q, opts, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
-    total = len(st.session_state.questions)
-    grade = get_grade(score, total)
+    grade = get_grade(score)
     
     if not st.session_state.results_saved:
         save_result_to_file({
             "Дата": datetime.now().strftime("%d.%m %H:%M"), "ФИО": st.session_state.name, 
             "Класс": st.session_state.u_class, "Тема": st.session_state.theme,
-            "Баллы": f"{score}/{total}", "Оценка": grade
+            "Баллы": f"{score}/{len(st.session_state.questions)}", "Оценка": grade
         })
         st.session_state.results_saved = True
 
-    st.markdown(f"<h1 style='text-align: center;'>Результат: {score} из {total}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center;'>Результат: {score} из {len(st.session_state.questions)}</h1>", unsafe_allow_html=True)
     st.markdown(f"<h2 style='text-align: center; color: gold;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
+    
+    # РАБОТА НАД ОШИБКАМИ
+    st.write("### 📝 Работа над ошибками:")
+    for i, (q, opts, corr) in enumerate(st.session_state.questions):
+        u_a = st.session_state.user_ans[i]
+        if u_a == corr:
+            st.success(f"**Вопрос {i+1}:** {q}\n\n✅ Ваш ответ: {u_a}")
+        else:
+            st.error(f"**Вопрос {i+1}:** {q}\n\n❌ Ваш ответ: {u_a}\n\n✔️ Правильный: {corr}")
     
     if st.button("В МЕНЮ"):
         st.session_state.test_state = "login"
-        st.session_state.selected_class = None
         st.rerun()
