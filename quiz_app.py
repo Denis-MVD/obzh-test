@@ -4,10 +4,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import os
 import base64
-from PIL import Image
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. ТЕХНИЧЕСКИЕ ФУНКЦИИ (ФОН И ЖЕСТКАЯ БЛОКИРОВКА) ---
+# --- 1. ФУНКЦИИ ФОНА И БЛОКИРОВКИ ---
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
@@ -18,7 +17,7 @@ def get_base64_of_bin_file(bin_file):
 def set_png_as_page_bg(bin_file):
     bin_str = get_base64_of_bin_file(bin_file)
     if bin_str:
-        page_bg_img = f'''
+        st.markdown(f'''
         <style>
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
@@ -26,8 +25,7 @@ def set_png_as_page_bg(bin_file):
             background-position: center;
             background-attachment: fixed;
         }}
-        
-        /* ПОЛНАЯ БЛОКИРОВКА КОПИРОВАНИЯ (ПК И МОБИЛЬНЫЕ) */
+        /* БЛОКИРОВКА КОПИРОВАНИЯ (ПК + МОБИЛЬНЫЕ) */
         * {{
             -webkit-user-select: none !important;
             -moz-user-select: none !important;
@@ -35,21 +33,14 @@ def set_png_as_page_bg(bin_file):
             user-select: none !important;
             -webkit-touch-callout: none !important;
         }}
-        
-        /* Исключение для ввода ФИО */
         input, textarea, [data-baseweb="input"] {{
             -webkit-user-select: text !important;
-            -moz-user-select: text !important;
-            -ms-user-select: text !important;
             user-select: text !important;
         }}
-
-        /* Запрет перетаскивания картинок */
         img {{
             pointer-events: none !important;
             -webkit-user-drag: none !important;
         }}
-
         /* ДИЗАЙН КОНТЕЙНЕРОВ */
         div[data-testid="stVerticalBlock"] > div {{
             background-color: rgba(61, 68, 50, 0.85) !important;
@@ -57,41 +48,27 @@ def set_png_as_page_bg(bin_file):
             border-left: 10px solid #2f3526 !important;
             box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
         }}
-        
         h1, h2, h3, p, label {{
-            color: #ffffff !important; 
-            font-family: 'Segoe UI', sans-serif; 
-            font-style: italic !important;
+            color: #ffffff !important; font-family: 'Segoe UI', sans-serif; 
+            font-style: italic !important; font-weight: bold !important;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
         }}
-        
-        .timer-box {{
-            font-size: 24px; color: #ff4b4b; font-weight: bold; text-align: center;
-            background: rgba(255,255,255,0.9); padding: 10px; border-radius: 10px;
-        }}
         </style>
-
         <script>
         document.addEventListener('contextmenu', event => event.preventDefault());
-        document.addEventListener('keydown', function(e) {{
-            if (e.ctrlKey && (e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 85 || e.keyCode === 83)) {{
-                return false;
-            }}
-        }}, false);
+        document.onselectstart = function() {{ return false; }};
         </script>
-        '''
-        st.markdown(page_bg_img, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
 
-# --- 2. НАСТРОЙКА СТРАНИЦЫ ---
+# --- 2. НАСТРОЙКА ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
 set_png_as_page_bg('фон.png')
 
-# --- 3. КОНСТАНТЫ ---
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
 TEST_DURATION_MIN = 15 
 
-# --- 4. ВОПРОСЫ (ПОЛНЫЙ СПИСОК) ---
+# --- 3. ВОПРОСЫ ---
 questions_10 = [
     ("Что сделать при сигнале «Внимание всем!»?", ["Бежать на улицу", "Включить ТВ или радио", "Спрятаться в подвале", "Позвонить родным"], "Включить ТВ или радио"),
     ("Безопасное место в здании при землетрясении?", ["У окна", "В лифте", "Проем капитальных стен", "Угловая комната"], "Проем капитальных стен"),
@@ -128,24 +105,16 @@ questions_11 = [
     ("Защита от аммиака. Повязку мочат:", ["Содой", "Лимонной кислотой", "Спиртом", "Маслом"], "Лимонной кислотой")
 ]
 
-# --- 5. ФУНКЦИИ ---
-def save_result_to_file(data):
+# --- 4. ЛОГИКА ---
+if 'test_state' not in st.session_state: st.session_state.test_state = "login"
+
+def save_result(data):
     file_exists = os.path.isfile(RESULTS_FILE)
     pd.DataFrame([data]).to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
 
-def get_grade(score, total):
-    perc = (score / total) * 100
-    if perc >= 90: return "5 (Отлично)"
-    elif perc >= 75: return "4 (Хорошо)"
-    elif perc >= 50: return "3 (Удовл.)"
-    else: return "2 (Неуд.)"
-
-# --- 6. ЛОГИКА СОСТОЯНИЙ ---
-if 'test_state' not in st.session_state: st.session_state.test_state = "login"
-
-# --- 7. ЭКРАН 1: ВХОД ---
+# --- ЭКРАН 1: ЛОГИН ---
 if st.session_state.test_state == "login":
-    # Ваши персональные данные в верхних линиях
+    # Две линии со статусом
     st.markdown("<p style='text-align: center; margin-bottom: -15px;'>Преподаватель Начальной военной и технической подготовки</p>", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("<p style='text-align: center; margin-bottom: -15px;'>Семенков Денис Алексеевич</p>", unsafe_allow_html=True)
@@ -171,15 +140,13 @@ if st.session_state.test_state == "login":
                     os.remove(RESULTS_FILE)
                     st.rerun()
 
-# --- 8. ЭКРАН 2: ОБУЧЕНИЕ (ФОТО) ---
+# --- ЭКРАН 2: УРОК ---
 elif st.session_state.test_state == "lesson":
-    st.markdown(f"## 📖 Изучение материала: {st.session_state.u_class}")
-    
+    st.markdown(f"## 📖 Учебный материал: {st.session_state.u_class}")
     if os.path.exists("collage.jpg"):
-        st.image("collage.jpg", caption="Виды чрезвычайных ситуаций")
+        st.image("collage.jpg", caption="Виды ЧС", use_container_width=True)
     
-    st.info("Внимательно изучите материалы. Копирование в тесте будет заблокировано.")
-    
+    st.warning("Внимательно изучите фото. Копирование в тесте запрещено.")
     if st.button("НАЧАТЬ ТЕСТИРОВАНИЕ 🚀"):
         st.session_state.start_time = datetime.now()
         raw_q = questions_10 if st.session_state.u_class == "10 класс" else questions_11
@@ -187,7 +154,7 @@ elif st.session_state.test_state == "lesson":
         st.session_state.test_state = "testing"
         st.rerun()
 
-# --- 9. ЭКРАН 3: ТЕСТ ---
+# --- ЭКРАН 3: ТЕСТ ---
 elif st.session_state.test_state == "testing":
     st_autorefresh(interval=5000, key="timer")
     rem = timedelta(minutes=TEST_DURATION_MIN) - (datetime.now() - st.session_state.start_time)
@@ -197,12 +164,12 @@ elif st.session_state.test_state == "testing":
         st.rerun()
 
     m, s = divmod(int(rem.total_seconds()), 60)
-    st.markdown(f"<div class='timer-box'>⏳ Осталось: {m:02d}:{s:02d}</div>", unsafe_allow_html=True)
+    st.markdown(f"### ⏳ Осталось времени: {m:02d}:{s:02d}")
     
     user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"**{i+1}. {q}**")
-        ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
+        ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
         user_ans.append(ans)
 
     if st.button("СДАТЬ РАБОТУ ✅"):
@@ -212,23 +179,21 @@ elif st.session_state.test_state == "testing":
             st.session_state.test_state = "finishing"
             st.rerun()
 
-# --- 10. ЭКРАН 4: ИТОГИ ---
+# --- ЭКРАН 4: ИТОГИ ---
 elif st.session_state.test_state == "finishing":
     score = sum(1 for i, (_, _, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
     total = len(st.session_state.questions)
-    grade = get_grade(score, total)
     
-    st.markdown(f"<h1 style='text-align: center;'>Итог: {score} из {total}</h1>", unsafe_allow_html=True)
+    perc = (score / total) * 100
+    if perc >= 90: grade = "5 (Отлично)"
+    elif perc >= 75: grade = "4 (Хорошо)"
+    elif perc >= 50: grade = "3 (Удовл.)"
+    else: grade = "2 (Неуд.)"
+    
+    st.markdown(f"<h1 style='text-align: center;'>Ваш результат: {score} из {total}</h1>", unsafe_allow_html=True)
     st.markdown(f"<h2 style='text-align: center; color: gold;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
     
-    save_result_to_file({
-        "Дата": datetime.now().strftime("%d.%m %H:%M"),
-        "ФИО": st.session_state.name,
-        "Класс": st.session_state.u_class,
-        "Баллы": f"{score}/{total}",
-        "Оценка": grade
-    })
-    
+    save_result({"Дата": datetime.now().strftime("%d.%m %H:%M"), "ФИО": st.session_state.name, "Оценка": grade})
     if st.button("ВЫХОД"):
         st.session_state.test_state = "login"
         st.rerun()
