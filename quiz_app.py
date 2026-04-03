@@ -3,144 +3,60 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# --- НАСТРОЙКИ СТИЛЯ (ШРИФТ И ЦВЕТ) ---
-st.set_page_config(page_title="Зачет по НВП", page_icon="🎖️")
+# Настройки стиля
+st.set_page_config(page_title="Зачет НВП", layout="centered")
 
 st.markdown("""
     <style>
-    /* Основной шрифт и фон */
-    html, body, [class*="css"] {
-        font-family: 'Courier New', Courier, monospace; 
-        color: #1b261b;
-    }
-    
-    /* Заголовок в армейском стиле */
-    .stHeader h1 {
-        color: #2d3e2d !important;
-        text-transform: uppercase;
-        border-bottom: 3px solid #486348;
-        padding-bottom: 10px;
-    }
-
-    /* Кнопки: Цвет Хаки */
-    div.stButton > button {
-        background-color: #486348 !important;
-        color: white !important;
-        border: 2px solid #2b3d2b;
-        font-weight: bold;
-        width: 100%;
-        transition: 0.3s;
-    }
-
-    /* Эффект при наведении */
-    div.stButton > button:hover {
-        background-color: #2b3d2b !important;
-        color: #ffd700 !important;
-        border-color: #ffd700;
-    }
-
-    /* Стиль для вопросов */
-    .stRadio label {
-        font-size: 18px !important;
-        font-weight: bold;
-        background: #f0f2f0;
-        padding: 10px;
-        border-radius: 5px;
-    }
+    .stApp { background-color: #f0f2f0; }
+    html, body, [class*="css"] { font-family: 'Courier New', Courier, monospace; color: #1b261b; }
+    div.stButton > button { background-color: #486348 !important; color: white !important; font-weight: bold; width: 100%; border-radius: 5px; }
+    div.stButton > button:hover { background-color: #2b3d2b !important; color: #ffd700 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ЛОГИКА ТЕСТА ---
+st.title("🎖️ ИТОГОВЫЙ ЗАЧЕТ ПО НВП")
 
-# Список вопросов (можно добавлять свои)
+# Сбор данных в боковой панели
+with st.sidebar:
+    st.header("Регистрация")
+    name = st.text_input("ФИО ученика")
+    group = st.text_input("Класс")
+    st.divider()
+    pin = st.text_input("Вход для учителя (ПИН)", type="password")
+
+# Вопросы
 questions = [
-    {
-        "question": "Калибр автомата АК-74?",
-        "options": ["7.62 мм", "5.45 мм", "9.00 мм", "5.56 мм"],
-        "answer": "5.45 мм"
-    },
-    {
-        "question": "Что необходимо сделать в первую очередь при обнаружении кровотечения?",
-        "options": ["Дать обезболивающее", "Наложить давящую повязку или жгут", "Промыть рану водой", "Вызвать полицию"],
-        "answer": "Наложить давящую повязку или жгут"
-    }
+    {"q": "Калибр АК-74?", "a": ["5.45 мм", "7.62 мм", "9 мм"], "correct": "5.45 мм"},
+    {"q": "Верхняя одежда военнослужащего?", "a": ["Китель", "Пальто", "Плащ"], "correct": "Китель"}
 ]
 
-st.title("🎖️ Итоговый зачет по НВП / ОБЖ")
+if name and group:
+    st.success(f"Боец: {name}, Класс: {group}")
+    ans = []
+    for i, item in enumerate(questions):
+        res = st.radio(item["q"], item["a"], key=i)
+        ans.append(res)
 
-# Форма регистрации ученика
-with st.sidebar:
-    st.header("Данные бойца")
-    student_name = st.text_input("ФИО ученика")
-    student_class = st.text_input("Класс (например, 10А)")
-    
-    st.divider()
-    # Секция для учителя (скрытая)
-    teacher_pin = st.text_input("ПИН-код для ведомости", type="password")
-
-if student_name and student_class:
-    st.info(f"К сдаче зачета допущен: {student_name} ({student_class})")
-    
-    responses = []
-    for i, q in enumerate(questions):
-        st.subheader(f"Вопрос №{i+1}")
-        res = st.radio(q["question"], q["options"], key=f"q{i}")
-        responses.append(res)
-
-    if st.button("ЗАВЕРШИТЬ ТЕСТ И ОТПРАВИТЬ ОТВЕТ"):
-        # Считаем баллы
-        score = 0
-        for i, q in enumerate(questions):
-            if responses[i] == q["answer"]:
-                score += 1
-        
+    if st.button("СДАТЬ ТЕСТ"):
+        score = sum(1 for i, item in enumerate(questions) if ans[i] == item["correct"])
         percent = (score / len(questions)) * 100
+        grade = "5" if percent >= 90 else "4" if percent >= 70 else "3" if percent >= 50 else "2"
         
-        # Оценка
-        if percent >= 90: grade = "5"
-        elif percent >= 75: grade = "4"
-        elif percent >= 50: grade = "3"
-        else: grade = "2"
-
-        # Сохраняем результат
-        new_data = {
-            "Дата": datetime.now().strftime("%d.%m.%Y %H:%M"),
-            "ФИО": student_name,
-            "Класс": student_class,
-            "Баллы": score,
-            "Процент": f"{percent}%",
-            "Оценка": grade
-        }
+        # Сохранение
+        res_data = {"Дата": datetime.now().strftime("%d.%m.%Y"), "ФИО": name, "Класс": group, "Оценка": grade}
+        df = pd.DataFrame([res_data])
+        df.to_csv("results.csv", mode='a', header=not os.path.exists("results.csv"), index=False)
         
-        df = pd.DataFrame([new_data])
-        
-        # Запись в файл (в Streamlit Cloud файлы временные, но для урока хватит)
-        if not os.path.isfile("results.csv"):
-            df.to_csv("results.csv", index=False)
-        else:
-            df.to_csv("results.csv", mode='a', header=False, index=False)
-            
-        st.success(f"Тест завершен! Ваша оценка: {grade}")
+        st.header(f"Ваша оценка: {grade}")
         st.balloons()
 
-# --- СЕКЦИЯ УЧИТЕЛЯ ---
-if teacher_pin == "1234":  # Ваш ПИН-код
-    st.divider()
-    st.header("📊 Ведомость результатов")
-    if os.path.isfile("results.csv"):
-        results_df = pd.read_csv("results.csv")
-        st.dataframe(results_df)
-        
-        # Кнопка скачивания для учителя
-        csv = results_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 СКАЧАТЬ ВЕДОМОСТЬ (EXCEL)",
-            data=csv,
-            file_name=f"vedomost_nvp_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-        )
+# Админка
+if pin == "1234":
+    st.header("📊 Ведомость")
+    if os.path.exists("results.csv"):
+        df_show = pd.read_csv("results.csv")
+        st.table(df_show)
+        st.download_button("Скачать ведомость", df_show.to_csv(index=False).encode('utf-8-sig'), "results.csv", "text/csv")
     else:
-        st.warning("Результатов пока нет.")
-else:
-    if teacher_pin != "":
-        st.error("Неверный ПИН-код доступа!")
+        st.info("Данных пока нет")
