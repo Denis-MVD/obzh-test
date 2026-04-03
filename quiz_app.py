@@ -66,22 +66,41 @@ def get_grade(score, total):
 # --- 4. ДИЗАЙН (CSS) ---
 st.markdown("""
     <style>
-    h1, h2, h3, h4, p, label, .stMarkdown, [data-testid="stMarkdownContainer"], .stRadio label {
-        color: #ffffff !important; font-family: 'Segoe UI', sans-serif; 
-        font-style: italic !important; font-weight: bold !important;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
+    /* 1. Блокировка выделения на всех устройствах */
+    * {
+        -webkit-user-select: none !important;  /* Safari/Chrome iOS/Android */
+        -moz-user-select: none !important;     /* Firefox */
+        -ms-user-select: none !important;      /* IE/Edge */
+        user-select: none !important;           /* Стандарт */
+        
+        /* 2. Отключаем контекстное меню при долгом нажатии на мобильных */
+        -webkit-touch-callout: none !important; 
     }
-    input, select, div[data-baseweb="select"], div[data-baseweb="input"] {
-        background-color: #1a1a1a !important; color: white !important; border: 1px solid #ffffff !important;
-    }
-    .stButton>button { 
-        background-color: #2f3526 !important; color: white !important; 
-        font-weight: bold; border: 2px solid #ffffff !important; width: 100%;
-    }
-    .timer-box { font-size: 26px; color: #ff4b4b; font-weight: bold; text-align: center; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 10px; border: 3px solid #2f3526; }
-    </style>
-""", unsafe_allow_html=True)
 
+    /* 3. Оставляем возможность вводить текст в поля (ФИО и ПИН-код) */
+    input, textarea, [data-baseweb="input"] {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+    }
+
+    /* 4. Запрещаем перетаскивание картинок (чтобы не утянули коллаж) */
+    img {
+        -webkit-user-drag: none !important;
+        user-drag: none !important;
+        pointer-events: none !important;
+    }
+    </style>
+
+    <script>
+    // Блокировка правой кнопки мыши
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // Дополнительная защита: сброс выделения при попытке
+    document.onselectstart = function() { return false; };
+    </script>
+""", unsafe_allow_html=True)
 # --- 5. ВОПРОСЫ ---
 questions_10 = [
     ("Что сделать при сигнале «Внимание всем!»?", ["Бежать на улицу", "Включить ТВ или радио", "Спрятаться в подвале", "Позвонить родным"], "Включить ТВ или радио"),
