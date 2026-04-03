@@ -6,28 +6,23 @@ import os
 import base64
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. ФУНКЦИИ ФОНА И БЛОКИРОВКИ ---
-def get_base64_of_bin_file(bin_file):
-    if os.path.exists(bin_file):
-        with open(bin_file, 'rb') as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    return None
-
-def set_page_style(bin_file):
-    bin_str = get_base64_of_bin_file(bin_file)
-    bg_style = ""
-    if bin_str:
-        bg_style = f'background-image: url("data:image/png;base64,{bin_str}"); background-size: cover;'
+# --- 1. УЛУЧШЕННАЯ ФУНКЦИЯ СТИЛЯ (ЗАЩИТА ОТ ЧЕРНОГО ЭКРАНА) ---
+def set_page_style(file_path):
+    bin_str = get_base64_of_bin_file(file_path)
+    
+    # Если файл найден — ставим его, если нет — просто темный цвет
+    bg_css = f'background-image: url("data:image/png;base64,{bin_str}");' if bin_str else "background-color: #2b3023;"
     
     st.markdown(f'''
     <style>
     .stApp {{
-        {bg_style}
+        {bg_css}
+        background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }}
-    /* БЛОКИРОВКА КОПИРОВАНИЯ */
+    
+    /* БЛОКИРОВКА КОПИРОВАНИЯ (ПК + МОБИЛЬНЫЕ) */
     * {{
         -webkit-user-select: none !important;
         -moz-user-select: none !important;
@@ -35,36 +30,46 @@ def set_page_style(bin_file):
         user-select: none !important;
         -webkit-touch-callout: none !important;
     }}
+    
+    /* Разрешаем ввод в поля ФИО */
     input, textarea, [data-baseweb="input"] {{
         -webkit-user-select: text !important;
         user-select: text !important;
     }}
-    img {{
-        pointer-events: none !important;
-        -webkit-user-drag: none !important;
-    }}
-    /* СТРУКТУРА КОНТЕЙНЕРОВ */
+
+    /* ДИЗАЙН КОНТЕЙНЕРОВ (ВАША СТРУКТУРА) */
     div[data-testid="stVerticalBlock"] > div {{
         background-color: rgba(61, 68, 50, 0.9) !important;
-        padding: 20px; border-radius: 15px; 
-        border-left: 8px solid #2f3526 !important;
-        margin-bottom: 10px;
+        padding: 20px; 
+        border-radius: 15px; 
+        border-left: 10px solid #1a1e15 !important;
+        margin-bottom: 15px;
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
     }}
+
     h1, h2, h3, p, label {{
-        color: #ffffff !important; 
-        text-shadow: 1px 1px 2px #000;
+        color: #ffffff !important;
+        font-family: 'Segoe UI', sans-serif;
+        text-shadow: 2px 2px 4px #000;
     }}
+    
+    hr {{ border: 1px solid rgba(255,255,255,0.3); }}
     </style>
+    
     <script>
     document.addEventListener('contextmenu', event => event.preventDefault());
     </script>
     ''', unsafe_allow_html=True)
 
-# --- 2. НАСТРОЙКА ---
-st.set_page_config(page_title="НВП: Контроль", layout="centered")
+def get_base64_of_bin_file(bin_file):
+    if os.path.exists(bin_file):
+        with open(bin_file, 'rb') as f:
+            return base64.b64encode(f.read()).decode()
+    return None
 
-# ПРОВЕРЬТЕ НАЗВАНИЕ ФАЙЛА ТУТ (background.png или фон.png)
-set_page_style('background.png') 
+# --- 2. НАСТРОЙКИ ---
+st.set_page_config(page_title="НВП: Контроль", layout="centered")
+set_page_style('background.png') # Убедитесь, что файл в GitHub называется именно так
 
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
@@ -106,10 +111,10 @@ questions_11 = [
     ("Защита от аммиака. Повязку мочат:", ["Содой", "Лимонной кислотой", "Спиртом", "Маслом"], "Лимонной кислотой")
 ]
 
-# --- 4. ЛОГИКА СОСТОЯНИЙ ---
+# --- 4. СОСТОЯНИЯ ---
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
 
-# --- ЭКРАН 1: ВХОД ---
+# --- ЭКРАН 1: ЛОГИН ---
 if st.session_state.test_state == "login":
     st.markdown("<p style='text-align: center; margin-bottom: -15px;'>Преподаватель Начальной военной и технической подготовки</p>", unsafe_allow_html=True)
     st.markdown("---")
@@ -118,7 +123,7 @@ if st.session_state.test_state == "login":
     
     st.markdown("<h1 style='text-align: center;'>🎖️ ЗАЧЕТ ПО НВП: ГРАЖДАНСКАЯ ОБОРОНА</h1>", unsafe_allow_html=True)
     
-    name = st.text_input("Фамилия и Имя ученика:")
+    name = st.text_input("Введите Фамилию и Имя:")
     u_class = st.selectbox("Класс:", ["10 класс", "11 класс"])
     
     if st.button("ПЕРЕЙТИ К ОБУЧЕНИЮ 📖"):
@@ -135,12 +140,12 @@ if st.session_state.test_state == "login":
 
 # --- ЭКРАН 2: УРОК ---
 elif st.session_state.test_state == "lesson":
-    st.markdown(f"### 📖 Учебный материал: {st.session_state.u_class}")
+    st.markdown(f"## 📖 Учебный материал: {st.session_state.u_class}")
     if os.path.exists("collage.jpg"):
         st.image("collage.jpg", use_container_width=True)
     
-    st.info("Изучите материал. Копирование текста заблокировано.")
-    if st.button("НАЧАТЬ ТЕСТ 🚀"):
+    st.info("Внимательно изучите изображения. Копирование текста заблокировано.")
+    if st.button("НАЧАТЬ ТЕСТИРОВАНИЕ 🚀"):
         st.session_state.start_time = datetime.now()
         raw_q = questions_10 if st.session_state.u_class == "10 класс" else questions_11
         st.session_state.questions = random.sample(raw_q, len(raw_q))
@@ -150,14 +155,13 @@ elif st.session_state.test_state == "lesson":
 # --- ЭКРАН 3: ТЕСТ ---
 elif st.session_state.test_state == "testing":
     st_autorefresh(interval=5000, key="timer")
-    elapsed = datetime.now() - st.session_state.start_time
-    rem = timedelta(minutes=15) - elapsed
+    rem = timedelta(minutes=15) - (datetime.now() - st.session_state.start_time)
     
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
         st.rerun()
 
-    st.write(f"Ученик: {st.session_state.name} | Оставшееся время: {int(rem.total_seconds()//60)} мин.")
+    st.write(f"👤 {st.session_state.name} | ⏳ Время: {int(rem.total_seconds()//60)} мин.")
     
     user_ans = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
@@ -165,8 +169,8 @@ elif st.session_state.test_state == "testing":
         ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=None)
         user_ans.append(ans)
 
-    if st.button("ЗАВЕРШИТЬ ✅"):
-        if None in user_ans: st.error("Ответьте на все вопросы!")
+    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅"):
+        if None in user_ans: st.warning("Ответьте на все вопросы!")
         else:
             st.session_state.user_ans = user_ans
             st.session_state.test_state = "finishing"
@@ -175,7 +179,8 @@ elif st.session_state.test_state == "testing":
 # --- ЭКРАН 4: ИТОГИ ---
 elif st.session_state.test_state == "finishing":
     score = sum(1 for i, (_, _, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
-    st.success(f"Тест завершен! Баллы: {score} из {len(st.session_state.questions)}")
+    st.markdown(f"# Результат: {score} из {len(st.session_state.questions)}")
+    
     if st.button("В НАЧАЛО"):
         st.session_state.test_state = "login"
         st.rerun()
