@@ -52,12 +52,8 @@ set_png_as_page_bg('background.png')
 # --- 2. КОНСТАНТЫ ---
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
-TEST_DURATION_MIN = 20 
-
-# --- 2. КОНСТАНТЫ ---
-TEACHER_PIN = "1234"
-RESULTS_FILE = "detailed_results.csv"
-TEST_DURATION_MIN = 20 
+TEST_DURATION_MIN = 15      # Таймер на 15 минут по твоему запросу
+QUESTIONS_LIMIT = 15        # Выводить по 15 вопросов
 
 # --- 3. БАЗА ДАННЫХ ---
 DATABASE = {
@@ -391,9 +387,15 @@ if st.session_state.test_state == "login":
                     st.session_state.start_time = datetime.now()
                     st.session_state.results_saved = False
                     
+                    # --- ЛОГИКА ВЫБОРА 15 ВОПРОСОВ ---
                     raw_q = themes[theme_name]
+                    # Берем 15 случайных вопросов (или все, если их меньше 15)
+                    num_to_select = min(len(raw_q), 15)
+                    selected_raw = random.sample(raw_q, num_to_select)
+                    
                     shuffled = []
-                    for q_text, opts, corr in random.sample(raw_q, len(raw_q)):
+                    for q_text, opts, corr in selected_raw:
+                        # Перемешиваем варианты ответов внутри каждого вопроса
                         sh_opts = random.sample(opts, len(opts))
                         shuffled.append((q_text, sh_opts, corr))
                     
@@ -411,42 +413,54 @@ if st.session_state.test_state == "login":
 
 # --- 7. ТЕСТИРОВАНИЕ ---
 elif st.session_state.test_state == "testing":
-    st_autorefresh(interval=5000, key="timer_refresh")
+    # Обновление раз в секунду для плавного таймера
+    st_autorefresh(interval=1000, key="timer_refresh")
+    
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
+        # Сохраняем пустые ответы, если время вышло
+        if 'user_ans' not in st.session_state:
+            st.session_state.user_ans = [None] * len(st.session_state.questions)
         st.rerun()
 
     st.markdown(f"### 👤 {st.session_state.name} | {st.session_state.theme}")
     m, s = divmod(int(rem.total_seconds()), 60)
     st.markdown(f"⏳ Осталось времени: **{m:02d}:{s:02d}**")
     
-    user_ans = []
+    # Собираем ответы
+    current_answers = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
+        st.markdown(f"---")
         st.markdown(f"**{i+1}. {q}**")
         ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
-        user_ans.append(ans)
+        current_answers.append(ans)
 
     if st.button("ЗАВЕРШИТЬ ТЕСТ ✅"):
-        if None in user_ans: st.warning("Ответьте на все вопросы!")
-        else:
-            st.session_state.user_ans = user_ans
-            st.session_state.test_state = "finishing"
-            st.rerun()
+        st.session_state.user_ans = current_answers
+        st.session_state.test_state = "finishing"
+        st.rerun()
 
 # --- 8. ИТОГИ ---
 elif st.session_state.test_state == "finishing":
+    # Если зашли сюда по таймеру и ответов нет
+    if 'user_ans' not in st.session_state:
+        st.session_state.user_ans = [None] * len(st.session_state.questions)
+        
     score = sum(1 for i, (q, opts, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
     total = len(st.session_state.questions)
     grade = get_grade(score, total)
     
     if not st.session_state.results_saved:
         save_result_to_file({
-            "Дата": datetime.now().strftime("%d.%m %H:%M"), "ФИО": st.session_state.name, 
-            "Класс": st.session_state.u_class, "Тема": st.session_state.theme,
-            "Баллы": f"{score}/{total}", "Оценка": grade
+            "Дата": datetime.now().strftime("%d.%m %H:%M"), 
+            "ФИО": st.session_state.name, 
+            "Класс": st.session_state.u_class, 
+            "Тема": st.session_state.theme,
+            "Баллы": f"{score}/{total}", 
+            "Оценка": grade
         })
         st.session_state.results_saved = True
 
@@ -456,4 +470,6 @@ elif st.session_state.test_state == "finishing":
     if st.button("В МЕНЮ"):
         st.session_state.test_state = "login"
         st.session_state.selected_class = None
+        # Очистка ответов для нового теста
+        if 'user_ans' in st.session_state: del st.session_state.user_ans
         st.rerun()
