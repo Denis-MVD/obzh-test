@@ -413,7 +413,7 @@ if st.session_state.test_state == "login":
 
 # --- 7. ТЕСТИРОВАНИЕ ---
 elif st.session_state.test_state == "testing":
-    # Обновление раз в секунду для плавного таймера
+    # Обновление каждую секунду для точности таймера
     st_autorefresh(interval=1000, key="timer_refresh")
     
     elapsed = datetime.now() - st.session_state.start_time
@@ -421,55 +421,54 @@ elif st.session_state.test_state == "testing":
     
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
-        # Сохраняем пустые ответы, если время вышло
         if 'user_ans' not in st.session_state:
             st.session_state.user_ans = [None] * len(st.session_state.questions)
         st.rerun()
 
-    st.markdown(f"### 👤 {st.session_state.name} | {st.session_state.theme}")
+    # --- ФИКСИРОВАННАЯ ПАНЕЛЬ ТАЙМЕРА ---
     m, s = divmod(int(rem.total_seconds()), 60)
-    st.markdown(f"⏳ Осталось времени: **{m:02d}:{s:02d}**")
+    timer_color = "red" if m < 2 else "white" # Краснеет, если осталось меньше 2 минут
     
-    # Собираем ответы
+    st.markdown(f"""
+        <style>
+        .fixed-header {{
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 700px;
+            background-color: rgba(40, 45, 33, 0.95);
+            padding: 10px 20px;
+            border-radius: 15px;
+            border: 2px solid #556b2f;
+            z-index: 999;
+            text-align: center;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.5);
+        }}
+        .sticky-spacer {{
+            height: 80px; /* Отступ, чтобы вопросы не залезали под таймер */
+        }}
+        </style>
+        <div class="fixed-header">
+            <span style="color: #dcdcdc; font-size: 14px;">👤 {st.session_state.name} | {st.session_state.theme}</span><br>
+            <span style="color: {timer_color}; font-size: 24px; font-weight: bold;">⏳ Осталось: {m:02d}:{s:02d}</span>
+        </div>
+        <div class="sticky-spacer"></div>
+    """, unsafe_allow_html=True)
+
+    # --- ОТОБРАЖЕНИЕ ВОПРОСОВ ---
     current_answers = []
     for i, (q, opts, corr) in enumerate(st.session_state.questions):
-        st.markdown(f"---")
         st.markdown(f"**{i+1}. {q}**")
         ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
         current_answers.append(ans)
+        st.markdown("---")
 
-    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅"):
-        st.session_state.user_ans = current_answers
-        st.session_state.test_state = "finishing"
-        st.rerun()
-
-# --- 8. ИТОГИ ---
-elif st.session_state.test_state == "finishing":
-    # Если зашли сюда по таймеру и ответов нет
-    if 'user_ans' not in st.session_state:
-        st.session_state.user_ans = [None] * len(st.session_state.questions)
-        
-    score = sum(1 for i, (q, opts, corr) in enumerate(st.session_state.questions) if st.session_state.user_ans[i] == corr)
-    total = len(st.session_state.questions)
-    grade = get_grade(score, total)
-    
-    if not st.session_state.results_saved:
-        save_result_to_file({
-            "Дата": datetime.now().strftime("%d.%m %H:%M"), 
-            "ФИО": st.session_state.name, 
-            "Класс": st.session_state.u_class, 
-            "Тема": st.session_state.theme,
-            "Баллы": f"{score}/{total}", 
-            "Оценка": grade
-        })
-        st.session_state.results_saved = True
-
-    st.markdown(f"<h1 style='text-align: center;'>Результат: {score} из {total}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align: center; color: gold;'>Оценка: {grade}</h2>", unsafe_allow_html=True)
-    
-    if st.button("В МЕНЮ"):
-        st.session_state.test_state = "login"
-        st.session_state.selected_class = None
-        # Очистка ответов для нового теста
-        if 'user_ans' in st.session_state: del st.session_state.user_ans
-        st.rerun()
+    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
+        if None in current_answers:
+            st.warning("⚠️ Ответьте на все вопросы перед завершением!")
+        else:
+            st.session_state.user_ans = current_answers
+            st.session_state.test_state = "finishing"
+            st.rerun()
