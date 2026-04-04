@@ -411,64 +411,140 @@ if st.session_state.test_state == "login":
             if os.path.exists(RESULTS_FILE):
                 st.dataframe(pd.read_csv(RESULTS_FILE), use_container_width=True)
 
-# --- 7. ТЕСТИРОВАНИЕ ---
+# --- 7. ТЕСТИРОВАНИЕ (ВЫВОД ВСЕХ 15 ВОПРОСОВ СРАЗУ) ---
 elif st.session_state.test_state == "testing":
-    # Обновление каждую секунду для точности таймера
+    # Обновление каждую секунду для плавного хода таймера
     st_autorefresh(interval=1000, key="timer_refresh")
     
+    # Расчет оставшегося времени
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
+    # Проверка на завершение времени
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
-        if 'user_ans' not in st.session_state:
+        # Если время вышло, записываем текущие ответы (или пустые)
+        if 'current_answers' not in locals():
             st.session_state.user_ans = [None] * len(st.session_state.questions)
         st.rerun()
 
-    # --- ФИКСИРОВАННАЯ ПАНЕЛЬ ТАЙМЕРА ---
+    # --- ФИКСИРОВАННАЯ ВЕРХНЯЯ ПАНЕЛЬ С ТАЙМЕРОМ ---
     m, s = divmod(int(rem.total_seconds()), 60)
-    timer_color = "red" if m < 2 else "white" # Краснеет, если осталось меньше 2 минут
+    timer_color = "#ff4b4b" if m < 3 else "#ffffff" # Краснеет, если осталось мало времени
     
     st.markdown(f"""
         <style>
         .fixed-header {{
             position: fixed;
-            top: 40px;
+            top: 30px;
             left: 50%;
             transform: translateX(-50%);
-            width: 90%;
+            width: 95%;
             max-width: 700px;
-            background-color: rgba(40, 45, 33, 0.95);
-            padding: 10px 20px;
+            background-color: rgba(45, 53, 38, 0.98);
+            padding: 15px;
             border-radius: 15px;
-            border: 2px solid #556b2f;
-            z-index: 999;
+            border-bottom: 4px solid #556b2f;
+            z-index: 1000;
             text-align: center;
-            box-shadow: 0px 5px 15px rgba(0,0,0,0.5);
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.7);
         }}
-        .sticky-spacer {{
-            height: 80px; /* Отступ, чтобы вопросы не залезали под таймер */
-        }}
+        .spacer {{ height: 100px; }}
         </style>
         <div class="fixed-header">
-            <span style="color: #dcdcdc; font-size: 14px;">👤 {st.session_state.name} | {st.session_state.theme}</span><br>
-            <span style="color: {timer_color}; font-size: 24px; font-weight: bold;">⏳ Осталось: {m:02d}:{s:02d}</span>
+            <div style="color: #aaaaaa; font-size: 14px; margin-bottom: 5px;">
+                👤 {st.session_state.name} | {st.session_state.u_class} | {st.session_state.theme}
+            </div>
+            <div style="color: {timer_color}; font-size: 26px; font-weight: bold; font-family: monospace;">
+                ⏳ ОСТАЛОСЬ: {m:02d}:{s:02d}
+            </div>
         </div>
-        <div class="sticky-spacer"></div>
+        <div class="spacer"></div>
     """, unsafe_allow_html=True)
 
-    # --- ОТОБРАЖЕНИЕ ВОПРОСОВ ---
+    # --- СПИСОК ВОПРОСОВ ---
     current_answers = []
-    for i, (q, opts, corr) in enumerate(st.session_state.questions):
-        st.markdown(f"**{i+1}. {q}**")
-        ans = st.radio(f"Выбор {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
-        current_answers.append(ans)
-        st.markdown("---")
+    for i, (q_text, opts, corr) in enumerate(st.session_state.questions):
+        with st.container():
+            st.markdown(f"#### Вопрос №{i+1}")
+            st.write(f"**{q_text}**")
+            # index=None заставляет ученика выбрать ответ осознанно
+            ans = st.radio(f"Выберите ответ для вопроса {i}:", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
+            current_answers.append(ans)
+            st.markdown("---")
 
+    # --- КНОПКА ЗАВЕРШЕНИЯ ---
     if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
         if None in current_answers:
-            st.warning("⚠️ Ответьте на все вопросы перед завершением!")
+            st.warning("⚠️ Вы ответили не на все вопросы! Пожалуйста, проверьте список.")
         else:
             st.session_state.user_ans = current_answers
             st.session_state.test_state = "finishing"
             st.rerun()
+
+# --- 8. ИТОГИ И РАБОТА НАД ОШИБКАМИ ---
+elif st.session_state.test_state == "finishing":
+    st.markdown("<h2 style='text-align: center;'>РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ</h2>", unsafe_allow_html=True)
+    
+    # Получаем данные
+    user_answers = st.session_state.user_ans
+    questions = st.session_state.questions
+    
+    # Подсчет баллов
+    score = 0
+    for i, (q, opts, corr) in enumerate(questions):
+        if user_answers[i] == corr:
+            score += 1
+            
+    total = len(questions)
+    grade_str = get_grade(score, total)
+    
+    # Сохранение в CSV (однократно)
+    if not st.session_state.get('results_saved', False):
+        save_result_to_file({
+            "Дата": datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "ФИО": st.session_state.name,
+            "Класс": st.session_state.u_class,
+            "Тема": st.session_state.theme,
+            "Баллы": f"{score}/{total}",
+            "Оценка": grade_str
+        })
+        st.session_state.results_saved = True
+
+    # Отображение итоговой карточки
+    st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.1); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid #556b2f;">
+            <h1 style="color: white; margin-bottom: 0;">{score} из {total}</h1>
+            <p style="font-size: 18px; color: #cccccc;">правильных ответов</p>
+            <h2 style="color: #ffd700; font-size: 48px; margin-top: 10px;">{grade_str}</h2>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.write("### 🔍 Разбор ответов:")
+    
+    # Работа над ошибками
+    for i, (q_text, opts, correct_ans) in enumerate(questions):
+        user_choice = user_answers[i]
+        is_correct = (user_choice == correct_ans)
+        
+        icon = "✅" if is_correct else "❌"
+        color = "green" if is_correct else "red"
+        
+        with st.expander(f"{icon} Вопрос №{i+1}"):
+            st.write(f"**Текст вопроса:** {q_text}")
+            if is_correct:
+                st.success(f"Ваш ответ: {user_choice}")
+            else:
+                st.error(f"Ваш ответ: {user_choice if user_choice else '[Нет ответа]'}")
+                st.info(f"Правильный ответ: {correct_ans}")
+
+    st.markdown("---")
+    
+    # Кнопка возврата
+    if st.button("⬅️ ВЕРНУТЬСЯ К ВЫБОРУ ТЕМЫ", use_container_width=True):
+        # Чистим состояние для нового теста
+        to_del = ['test_state', 'questions', 'user_ans', 'start_time', 'results_saved', 'name', 'selected_class']
+        for k in to_del:
+            if k in st.session_state:
+                del st.session_state[k]
+        st.rerun()
