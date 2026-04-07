@@ -422,14 +422,48 @@ DATABASE = {
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
 if 'selected_class' not in st.session_state: st.session_state.selected_class = None
 
+# --- 5. ЛОГИКА СОСТОЯНИЙ И ВОССТАНОВЛЕНИЯ ---
+if 'test_state' not in st.session_state: 
+    st.session_state.test_state = "login"
+if 'selected_class' not in st.session_state: 
+    st.session_state.selected_class = None
+
+# АВТО-ВОССТАНОВЛЕНИЕ ПРИ ОБНОВЛЕНИИ (Добавь этот блок!)
+if st.session_state.test_state == "login":
+    # Если в поле ввода уже есть имя (сохранилось в сессии)
+    if st.session_state.get('name'):
+        draft = load_draft(st.session_state['name'])
+        if draft:
+            st.session_state.questions = draft['questions']
+            st.session_state.user_ans = draft['answers']
+            st.session_state.start_time = draft['start_time']
+            st.session_state.u_class = draft.get('u_class', st.session_state.get('selected_class'))
+            st.session_state.theme = draft.get('theme')
+            st.session_state.test_state = "testing"
+            st.rerun()
+
 # --- 5. ЭКРАН ВХОДА ---
 if st.session_state.test_state == "login":
     st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной и технической подготовке</h4>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ КОНТРОЛЬ ЗНАНИЙ ПО НВтП</h2>", unsafe_allow_html=True)
     
-    name = st.text_input("Фамилия и Имя ученика:")
+    # Привязываем ввод к session_state через key="name", чтобы имя не стиралось
+    name = st.text_input("Фамилия и Имя ученика:", key="name")
     
+    # Если ученик ввел имя и нажал Enter — пробуем загрузить черновик сразу
+    if name:
+        draft = load_draft(name)
+        if draft:
+            st.session_state.u_class = draft.get('u_class')
+            st.session_state.theme = draft.get('theme')
+            st.session_state.questions = draft['questions']
+            st.session_state.user_ans = draft['answers']
+            st.session_state.start_time = draft['start_time']
+            st.session_state.test_state = "testing"
+            st.session_state.results_saved = False
+            st.rerun()
+
     st.write("### Выберите класс:")
     c1, col_empty, c2 = st.columns([2, 0.5, 2])
     if c1.button("10 КЛАСС 📘", use_container_width=True):
@@ -444,38 +478,26 @@ if st.session_state.test_state == "login":
         for theme_name in themes.keys():
             if st.button(theme_name, use_container_width=True):
                 if name:
-                    draft = load_draft(name)
-                    if draft:
-                        st.session_state.name = name
-                        st.session_state.u_class = st.session_state.selected_class
-                        st.session_state.theme = theme_name
-                        st.session_state.questions = draft['questions']
-                        st.session_state.user_ans = draft['answers']
-                        st.session_state.start_time = draft['start_time']
-                        st.session_state.test_state = "testing"
-                        st.session_state.results_saved = False
-                        st.rerun()
-                    else:
-                        st.session_state.name = name
-                        st.session_state.u_class = st.session_state.selected_class
-                        st.session_state.theme = theme_name
-                        st.session_state.start_time = datetime.now()
-                        st.session_state.results_saved = False
-                        
-                        raw_q = themes[theme_name]
-                        num_to_select = min(len(raw_q), QUESTIONS_LIMIT)
-                        selected_raw = random.sample(raw_q, num_to_select)
-                        
-                        shuffled = []
-                        for q_text, opts, corr in selected_raw:
-                            sh_opts = random.sample(opts, len(opts))
-                            shuffled.append((q_text, sh_opts, corr))
-                        
-                        st.session_state.questions = shuffled
-                        st.session_state.user_ans = [None] * len(shuffled)
-                        st.session_state.test_state = "testing"
-                        save_draft(name, st.session_state.questions, st.session_state.user_ans)
-                        st.rerun()
+                    st.session_state.u_class = st.session_state.selected_class
+                    st.session_state.theme = theme_name
+                    st.session_state.start_time = datetime.now()
+                    st.session_state.results_saved = False
+                    
+                    raw_q = themes[theme_name]
+                    num_to_select = min(len(raw_q), QUESTIONS_LIMIT)
+                    selected_raw = random.sample(raw_q, num_to_select)
+                    
+                    shuffled = []
+                    for q_text, opts, corr in selected_raw:
+                        sh_opts = random.sample(opts, len(opts))
+                        shuffled.append((q_text, sh_opts, corr))
+                    
+                    st.session_state.questions = shuffled
+                    st.session_state.user_ans = [None] * len(shuffled)
+                    st.session_state.test_state = "testing"
+                    # Сохраняем черновик сразу при старте
+                    save_draft(name, st.session_state.questions, st.session_state.user_ans)
+                    st.rerun()
                 else:
                     st.error("⚠️ Сначала введите Фамилию и Имя!")
 
@@ -517,9 +539,15 @@ elif st.session_state.test_state == "testing":
         st.markdown(f"#### Вопрос №{i+1}")
         st.write(q_text)
         current_val = st.session_state.user_ans[i]
-        old_index = opts.index(current_val) if current_val in opts else None
+        
+        # Индекс для радиокнопки, чтобы ответ не слетал
+        try:
+            old_index = opts.index(current_val) if current_val in opts else None
+        except:
+            old_index = None
 
         ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=old_index, label_visibility="collapsed")
+        
         if ans != st.session_state.user_ans[i]:
             st.session_state.user_ans[i] = ans
             save_draft(st.session_state.name, st.session_state.questions, st.session_state.user_ans)
