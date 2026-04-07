@@ -19,27 +19,46 @@ def set_png_as_page_bg(bin_file):
     if bin_str:
         page_bg_img = f'''
         <style>
+        /* Основной фон всей страницы */
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
+        
+        /* Скрываем лишние элементы интерфейса Streamlit */
         #MainMenu {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
         
-        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stSelectbox, .stButton, .stExpander, p, span, .stMarkdown) {{
+        /* 1. СТИЛЬ ДЛЯ БЛОКОВ С КОНТЕНТОМ (Вопросы, кнопки, поля) */
+        /* Мы убрали p и span из селектора, чтобы не подсвечивать пустые строки */
+        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
             padding: 25px; 
             border-radius: 15px; 
             border-left: 10px solid #2f3526 !important;
             box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            display: block !important;
         }}
 
-        div[data-testid="stVerticalBlock"] > div:not(:has(*)) {{
+        /* 2. ПОЛНОЕ СКРЫТИЕ ПУСТЫХ КОНТЕЙНЕРОВ */
+        /* Если в блоке нет ключевых элементов, он становится невидимым и не занимает места */
+        div[data-testid="stVerticalBlock"] > div:not(:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError)) {{
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 0px !important;
             display: none !important;
+        }}
+
+        /* 3. УСТРАНЕНИЕ СТАНДАРТНЫХ МЕЖСТРОЧНЫХ ИНТЕРВАЛОВ */
+        [data-testid="stVerticalBlock"] {{
+            gap: 0rem !important;
         }}
         </style>
         '''
@@ -52,9 +71,8 @@ set_png_as_page_bg('background.png')
 # --- 2. КОНСТАНТЫ ---
 TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
-TEST_DURATION_MIN = 15      # Таймер на 15 минут по твоему запросу
+TEST_DURATION_MIN = 15      # Таймер на 15 минут
 QUESTIONS_LIMIT = 15        # Выводить по 15 вопросов
-
 # --- 3. БАЗА ДАННЫХ ---
 DATABASE = {
     "10 класс": {
