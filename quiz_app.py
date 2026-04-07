@@ -361,9 +361,9 @@ if 'selected_class' not in st.session_state: st.session_state.selected_class = N
 
 # --- 6. ЭКРАН ВХОДА ---
 if st.session_state.test_state == "login":
-    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной подготовке</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной и технической подготовке</h4>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ КОНТРОЛЬ ЗНАНИЙ ПО НВП</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ КОНТРОЛЬ ЗНАНИЙ ПО НВтП</h2>", unsafe_allow_html=True)
     
     name = st.text_input("Фамилия и Имя ученика:")
     
