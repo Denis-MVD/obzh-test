@@ -76,7 +76,7 @@ st.set_page_config(page_title="НВП: Контроль", layout="centered", pag
 set_png_as_page_bg('background.png')
 
 # --- 2. КОНСТАНТЫ ---
-TEACHER_PIN = "1234"
+TEACHER_PIN = "2402"
 RESULTS_FILE = "detailed_results.csv"
 TEST_DURATION_MIN = 15      # Таймер на 15 минут
 QUESTIONS_LIMIT = 15        # Выводить по 15 вопросов
