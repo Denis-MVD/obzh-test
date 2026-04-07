@@ -63,31 +63,49 @@ def set_png_as_page_bg(bin_file):
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- НОВЫЕ ФУНКЦИИ: СОХРАНЕНИЕ ПРОГРЕССА (ЧЕРНОВИК) ---
+# --- ФУНКЦИИ: СОХРАНЕНИЕ ПРОГРЕССА (ЧЕРНОВИК) ---
 def save_draft(name, questions, answers):
-    """Сохраняет вопросы и текущие ответы ученика в файл"""
+    """Исправленная функция сохранения (без ошибок JSON)"""
+    start_time_val = st.session_state.get('start_time')
+    # Конвертируем время в строку для JSON
+    if isinstance(start_time_val, datetime):
+        start_time_str = start_time_val.isoformat()
+    else:
+        start_time_str = str(start_time_val)
+
     draft_data = {
         "questions": questions,
         "answers": answers,
-        "start_time": st.session_state.get('start_time', datetime.now().isoformat())
+        "start_time": start_time_str
     }
     filename = f"draft_{name.replace(' ', '_')}.json"
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(draft_data, f, ensure_ascii=False)
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(draft_data, f, ensure_ascii=False)
+    except Exception:
+        pass
 
 def load_draft(name):
-    """Загружает черновик, если он существует"""
+    """Загрузка черновика с обратной конвертацией времени"""
     filename = f"draft_{name.replace(' ', '_')}.json"
     if os.path.exists(filename):
-        with open(filename, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                draft = json.load(f)
+            if draft.get('start_time'):
+                draft['start_time'] = datetime.fromisoformat(draft['start_time'])
+            return draft
+        except Exception:
+            return None
     return None
 
 def delete_draft(name):
-    """Удаляет черновик после завершения теста"""
+    """Удаление черновика"""
+    if not name: return
     filename = f"draft_{name.replace(' ', '_')}.json"
     if os.path.exists(filename):
-        os.remove(filename)
+        try: os.remove(filename)
+        except: pass
 
 # --- 1. НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
@@ -96,8 +114,8 @@ set_png_as_page_bg('background.png')
 # --- 2. КОНСТАНТЫ ---
 TEACHER_PIN = "2402"
 RESULTS_FILE = "detailed_results.csv"
-TEST_DURATION_MIN = 15      # Таймер на 15 минут
-QUESTIONS_LIMIT = 15        # Выводить по 15 вопросов
+TEST_DURATION_MIN = 15      
+QUESTIONS_LIMIT = 15
 # --- 3. БАЗА ДАННЫХ ---
 DATABASE = {
     "10 класс": {
@@ -508,11 +526,11 @@ elif st.session_state.test_state == "testing":
         <div style="height: 110px;"></div>
     """, unsafe_allow_html=True)
 
+    # Важно: используем session_state.user_ans напрямую для сохранения
     for i, (q_text, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"#### Вопрос №{i+1}")
         st.write(q_text)
         
-        # Индекс для радиокнопки (если ответ уже был в черновике)
         current_val = st.session_state.user_ans[i]
         try:
             old_index = opts.index(current_val) if current_val in opts else None
@@ -521,7 +539,7 @@ elif st.session_state.test_state == "testing":
 
         ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=old_index, label_visibility="collapsed")
         
-        # Сохраняем ответ при каждом изменении
+        # Автосохранение при клике
         if ans != st.session_state.user_ans[i]:
             st.session_state.user_ans[i] = ans
             save_draft(st.session_state.name, st.session_state.questions, st.session_state.user_ans)
@@ -554,7 +572,7 @@ elif st.session_state.test_state == "finishing":
             "Баллы": f"{score}/{total}",
             "Оценка": grade
         })
-        # После успешного сохранения удаляем черновик
+        # Стираем черновик, так как тест успешно сдан
         delete_draft(st.session_state.name)
         st.session_state.results_saved = True
 
@@ -576,8 +594,15 @@ elif st.session_state.test_state == "finishing":
                 st.info(f"Верный ответ: {correct}")
 
     if st.button("⬅️ В МЕНЮ", use_container_width=True):
-        # Перед удалением сессии убедимся, что черновик стерт
-        delete_draft(st.session_state.get('name', ''))
-        for k in ['test_state', 'questions', 'user_ans', 'start_time', 'results_saved', 'name', 'selected_class']:
-            if k in st.session_state: del st.session_state[k]
+        # Полная очистка перед выходом
+        current_user = st.session_state.get('name', '')
+        delete_draft(current_user)
+        
+        # Список всех ключей, которые нужно сбросить
+        keys_to_clear = ['test_state', 'questions', 'user_ans', 'start_time', 
+                         'results_saved', 'name', 'selected_class', 'theme', 'u_class']
+        for k in keys_to_clear:
+            if k in st.session_state:
+                del st.session_state[k]
+        
         st.rerun()
