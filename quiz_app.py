@@ -369,180 +369,176 @@ DATABASE = {
 }
 # --- 4. ФУНКЦИИ ---
 def save_result_to_file(data):
-    file_exists = os.path.isfile(RESULTS_FILE)
-    df = pd.DataFrame([data])
-    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
+    # Очищено от лишних символов
+    file_exists = os.path.isfile(RESULTS_FILE)
+    df = pd.DataFrame([data])
+    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
 
 def get_grade(score, total):
-    perc = (score / total) * 100
-    if perc >= 90: return "5 (Отлично)"
-    elif perc >= 75: return "4 (Хорошо)"
-    elif perc >= 50: return "3 (Удовл.)"
-    else: return "2 (Неуд.)"
+    perc = (score / total) * 100
+    if perc >= 90: return "5 (Отлично)"
+    elif perc >= 75: return "4 (Хорошо)"
+    elif perc >= 50: return "3 (Удовл.)"
+    else: return "2 (Неуд.)"
 
 # --- 5. ЛОГИКА СОСТОЯНИЙ ---
-if 'test_state' not in st.session_state: st.session_state.test_state = "login"
-if 'selected_class' not in st.session_state: st.session_state.selected_class = None
+if 'test_state' not in st.session_state: 
+    st.session_state.test_state = "login"
+if 'selected_class' not in st.session_state: 
+    st.session_state.selected_class = None
 
 # --- 6. ЭКРАН ВХОДА ---
 if st.session_state.test_state == "login":
-    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной и технической подготовке</h4>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ КОНТРОЛЬ ЗНАНИЙ ПО НВтП</h2>", unsafe_allow_html=True)
-    
-    name = st.text_input("Фамилия и Имя ученика:")
-    
-    st.write("### Выберите класс:")
-    c1, col_empty, c2 = st.columns([2, 0.5, 2]) # Немного раздвинул кнопки
-    if c1.button("10 КЛАСС 📘", use_container_width=True):
-        st.session_state.selected_class = "10 класс"
-    if c2.button("11 КЛАСС 📕", use_container_width=True):
-        st.session_state.selected_class = "11 класс"
+    st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной и технической подготовке</h4>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: white; text-transform: uppercase;'>🎖️ КОНТРОЛЬ ЗНАНИЙ ПО НВтП</h2>", unsafe_allow_html=True)
+    
+    name = st.text_input("Фамилия и Имя ученика:")
+    
+    st.write("### Выберите класс:")
+    c1, col_empty, c2 = st.columns([2, 0.5, 2])
+    if c1.button("10 КЛАСС 📘", use_container_width=True):
+        st.session_state.selected_class = "10 класс"
+    if c2.button("11 КЛАСС 📕", use_container_width=True):
+        st.session_state.selected_class = "11 класс"
 
-    if st.session_state.selected_class:
-        st.info(f"Выбран: {st.session_state.selected_class}")
-        themes = DATABASE[st.session_state.selected_class]
-        
-        for theme_name in themes.keys():
-            if st.button(theme_name, use_container_width=True):
-                if name:
-                    st.session_state.name = name
-                    st.session_state.u_class = st.session_state.selected_class
-                    st.session_state.theme = theme_name
-                    st.session_state.start_time = datetime.now()
-                    st.session_state.results_saved = False
-                    
-                    # --- ЛОГИКА ВЫБОРА 15 ВОПРОСОВ ---
-                    raw_q = themes[theme_name]
-                    num_to_select = min(len(raw_q), 15)
-                    selected_raw = random.sample(raw_q, num_to_select)
-                    
-                    shuffled = []
-                    for q_text, opts, corr in selected_raw:
-                        sh_opts = random.sample(opts, len(opts))
-                        shuffled.append((q_text, sh_opts, corr))
-                    
-                    st.session_state.questions = shuffled
-                    st.session_state.test_state = "testing"
-                    st.rerun()
-                else:
-                    st.error("⚠️ Сначала введите Фамилию и Имя!")
+    if st.session_state.selected_class:
+        st.info(f"Выбран: {st.session_state.selected_class}")
+        themes = DATABASE[st.session_state.selected_class]
+        
+        for theme_name in themes.keys():
+            if st.button(theme_name, use_container_width=True):
+                if name.strip():
+                    st.session_state.name = name
+                    st.session_state.u_class = st.session_state.selected_class
+                    st.session_state.theme = theme_name
+                    st.session_state.start_time = datetime.now()
+                    st.session_state.results_saved = False
+                    
+                    # Логика выбора вопросов
+                    raw_q = themes[theme_name]
+                    num_to_select = min(len(raw_q), 15)
+                    selected_raw = random.sample(raw_q, num_to_select)
+                    
+                    shuffled = []
+                    for q_text, opts, corr in selected_raw:
+                        sh_opts = random.sample(opts, len(opts))
+                        shuffled.append((q_text, sh_opts, corr))
+                    
+                    st.session_state.questions = shuffled
+                    st.session_state.test_state = "testing"
+                    st.rerun()
+                else:
+                    st.error("⚠️ Сначала введите Фамилию и Имя!")
 
-    # --- КАБИНЕТ ПРЕПОДАВАТЕЛЯ (ВНУТРИ БЛОКА LOGIN) ---
-    st.write("---")
-    with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
-        pin = st.text_input("Введите PIN-код для доступа:", type="password")
-        
-        if pin == TEACHER_PIN:
-            st.success("Доступ разрешен")
-            
-            if os.path.exists(RESULTS_FILE):
-                df_results = pd.read_csv(RESULTS_FILE)
-                
-                if not df_results.empty:
-                    # Кнопка полного сброса
-                    if st.button("🗑️ ОЧИСТИТЬ ВЕСЬ СПИСОК", use_container_width=True):
-                        os.remove(RESULTS_FILE)
-                        st.rerun()
+    # --- КАБИНЕТ ПРЕПОДАВАТЕЛЯ ---
+    st.write("---")
+    with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
+        pin = st.text_input("Введите PIN-код для доступа:", type="password")
+        if pin == TEACHER_PIN:
+            st.success("Доступ разрешен")
+            if os.path.exists(RESULTS_FILE):
+                df_results = pd.read_csv(RESULTS_FILE)
+                if not df_results.empty:
+                    if st.button("🗑️ ОЧИСТИТЬ ВЕСЬ СПИСОК", use_container_width=True):
+                        os.remove(RESULTS_FILE)
+                        st.rerun()
 
-                    st.write("### Текущие результаты:")
-                    # Вывод списка построчно с кнопками удаления
-                    for index, row in df_results.iterrows():
-                        c_info, c_btn = st.columns([4, 1])
-                        c_info.write(f"**{row['ФИО']}** | {row['Оценка']} ({row['Баллы']})")
-                        if c_btn.button("d", key=f"del_{index}"):
-                            df_new = df_results.drop(index)
-                            df_new.to_csv(RESULTS_FILE, index=False, encoding='utf-8-sig')
-                            st.rerun()
-                    
-                    st.write("---")
-                    st.dataframe(df_results, use_container_width=True)
-                else:
-                    st.info("Список пуст")
-            else:
-                st.info("Файл результатов еще не создан")
+                    for index, row in df_results.iterrows():
+                        c_info, c_btn = st.columns([4, 1])
+                        c_info.write(f"**{row['ФИО']}** | {row['Оценка']}")
+                        if c_btn.button("❌", key=f"del_{index}"):
+                            df_new = df_results.drop(index)
+                            df_new.to_csv(RESULTS_FILE, index=False, encoding='utf-8-sig')
+                            st.rerun()
+                    st.dataframe(df_results, use_container_width=True)
+                else:
+                    st.info("Список пуст")
 
 # --- 7. ТЕСТИРОВАНИЕ ---
 elif st.session_state.test_state == "testing":
-    st_autorefresh(interval=1000, key="timer_refresh")
-    
-    elapsed = datetime.now() - st.session_state.start_time
-    rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
-    
-    if rem.total_seconds() <= 0:
-        st.session_state.test_state = "finishing"
-        if 'user_ans' not in st.session_state:
-            st.session_state.user_ans = [None] * len(st.session_state.questions)
-        st.rerun()
+    st_autorefresh(interval=1000, key="timer_refresh")
+    
+    elapsed = datetime.now() - st.session_state.start_time
+    rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
+    
+    # Функция для экстренного сбора ответов при выходе времени
+    def get_current_answers():
+        return [st.session_state.get(f"q_{i}") for i in range(len(st.session_state.questions))]
 
-    # Таймер
-    m, s = divmod(int(rem.total_seconds()), 60)
-    t_color = "#ff4b4b" if m < 3 else "#ffffff"
-    
-    st.markdown(f"""
-        <div style="position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 700px; background: rgba(45,53,38,0.98); padding: 15px; border-radius: 15px; border-bottom: 4px solid #556b2f; z-index: 1000; text-align: center;">
-            <div style="color: #aaa; font-size: 14px;">👤 {st.session_state.name} | {st.session_state.theme}</div>
-            <div style="color: {t_color}; font-size: 26px; font-weight: bold;">⏳ ОСТАЛОСЬ: {m:02d}:{s:02d}</div>
-        </div>
-        <div style="height: 110px;"></div>
-    """, unsafe_allow_html=True)
+    if rem.total_seconds() <= 0:
+        st.session_state.user_ans = get_current_answers()
+        st.session_state.test_state = "finishing"
+        st.rerun()
 
-    current_answers = []
-    for i, (q_text, opts, corr) in enumerate(st.session_state.questions):
-        st.markdown(f"#### Вопрос №{i+1}")
-        st.write(q_text)
-        ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
-        current_answers.append(ans)
-        st.markdown("---")
+    # Таймер (UI)
+    m, s = divmod(int(rem.total_seconds()), 60)
+    t_color = "#ff4b4b" if m < 3 else "#ffffff"
+    st.markdown(f"""
+        <div style="position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 700px; background: rgba(45,53,38,0.98); padding: 15px; border-radius: 15px; border-bottom: 4px solid #556b2f; z-index: 1000; text-align: center;">
+            <div style="color: #aaa; font-size: 14px;">👤 {st.session_state.name}</div>
+            <div style="color: {t_color}; font-size: 26px; font-weight: bold;">⏳ ОСТАЛОСЬ: {m:02d}:{s:02d}</div>
+        </div>
+        <div style="height: 110px;"></div>
+    """, unsafe_allow_html=True)
 
-    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
-        if None in current_answers:
-            st.warning("Ответьте на все вопросы!")
-        else:
-            st.session_state.user_ans = current_answers
-            st.session_state.test_state = "finishing"
-            st.rerun()
+    for i, (q_text, opts, corr) in enumerate(st.session_state.questions):
+        st.markdown(f"#### Вопрос №{i+1}")
+        st.write(q_text)
+        # Ключ f"q_{i}" автоматически сохраняет выбор в session_state
+        st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
+        st.markdown("---")
+
+    if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
+        ans_list = get_current_answers()
+        if None in ans_list:
+            st.warning("Ответьте на все вопросы перед завершением!")
+        else:
+            st.session_state.user_ans = ans_list
+            st.session_state.test_state = "finishing"
+            st.rerun()
 
 # --- 8. ИТОГИ ---
 elif st.session_state.test_state == "finishing":
-    st.markdown("<h2 style='text-align: center;'>ИТОГИ</h2>", unsafe_allow_html=True)
-    
-    user_ans = st.session_state.user_ans
-    questions = st.session_state.questions
-    score = sum(1 for i, (q, o, c) in enumerate(questions) if user_ans[i] == c)
-    total = len(questions)
-    grade = get_grade(score, total)
-    
-    if not st.session_state.get('results_saved', False):
-        save_result_to_file({
-            "Дата": datetime.now().strftime("%d.%m.%Y %H:%M"),
-            "ФИО": st.session_state.name,
-            "Класс": st.session_state.u_class,
-            "Тема": st.session_state.theme,
-            "Баллы": f"{score}/{total}",
-            "Оценка": grade
-        })
-        st.session_state.results_saved = True
+    st.markdown("<h2 style='text-align: center;'>ИТОГИ</h2>", unsafe_allow_html=True)
+    
+    user_ans = st.session_state.user_ans
+    questions = st.session_state.questions
+    score = sum(1 for i, (q, o, c) in enumerate(questions) if user_ans[i] == c)
+    total = len(questions)
+    grade = get_grade(score, total)
+    
+    if not st.session_state.get('results_saved', False):
+        save_result_to_file({
+            "Дата": datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "ФИО": st.session_state.name,
+            "Класс": st.session_state.u_class,
+            "Тема": st.session_state.theme,
+            "Баллы": f"{score}/{total}",
+            "Оценка": grade
+        })
+        st.session_state.results_saved = True
 
-    st.markdown(f"""
-        <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; text-align: center; border: 2px solid #556b2f;">
-            <h1>{score} из {total}</h1>
-            <h2 style="color: gold;">{grade}</h2>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; text-align: center; border: 2px solid #556b2f;">
+            <h1>{score} из {total}</h1>
+            <h2 style="color: gold;">{grade}</h2>
+        </div>
+    """, unsafe_allow_html=True)
 
-    st.write("### 🔍 Разбор:")
-    for i, (q_text, opts, correct) in enumerate(questions):
-        u_choice = user_ans[i]
-        correct_flag = "✅" if u_choice == correct else "❌"
-        with st.expander(f"{correct_flag} Вопрос №{i+1}"):
-            st.write(f"**{q_text}**")
-            st.write(f"Ваш ответ: {u_choice}")
-            if u_choice != correct:
-                st.info(f"Верный ответ: {correct}")
+    st.write("### 🔍 Разбор ошибок:")
+    for i, (q_text, opts, correct) in enumerate(questions):
+        u_choice = user_ans[i]
+        correct_flag = "✅" if u_choice == correct else "❌"
+        with st.expander(f"{correct_flag} Вопрос №{i+1}"):
+            st.write(f"**{q_text}**")
+            st.write(f"Ваш ответ: {u_choice if u_choice else 'Нет ответа'}")
+            if u_choice != correct:
+                st.info(f"Верный ответ: {correct}")
 
-    if st.button("⬅️ В МЕНЮ", use_container_width=True):
-        for k in ['test_state', 'questions', 'user_ans', 'start_time', 'results_saved', 'name', 'selected_class']:
-            if k in st.session_state: del st.session_state[k]
-        st.rerun()
- 
+    if st.button("⬅️ В МЕНЮ", use_container_width=True):
+        # Полная очистка состояния для нового теста
+        for key in list(st.session_state.keys()):
+            if key not in ['DATABASE', 'TEACHER_PIN', 'RESULTS_FILE']: # Оставляем константы
+                del st.session_state[key]
+        st.rerun()
