@@ -4,10 +4,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import os
 import base64
-import json
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
+# --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
@@ -20,16 +19,21 @@ def set_png_as_page_bg(bin_file):
     if bin_str:
         page_bg_img = f'''
         <style>
+        /* Основной фон всей страницы */
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
+        
+        /* Скрываем системные элементы Streamlit */
         #MainMenu {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
         
+        /* 1. СТИЛЬ ДЛЯ БЛОКОВ С КОНТЕНТОМ (Вопросы, кнопки, поля) */
+        /* Добавлены .fixed-header и .stMarkdown, чтобы важные элементы не исчезали */
         div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
             padding: 25px; 
@@ -39,62 +43,43 @@ def set_png_as_page_bg(bin_file):
             margin-bottom: 20px;
             display: block !important;
         }}
+
+        /* 2. ПОЛНОЕ СКРЫТИЕ ПУСТЫХ КОНТЕЙНЕРОВ */
+        /* Находим блоки без контента и принудительно их убираем */
+        div[data-testid="stVerticalBlock"] > div:not(:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown, p, span)) {{
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 0px !important;
+            display: none !important;
+        }}
+
+        /* 3. СПЕЦИАЛЬНОЕ ПРАВИЛО ДЛЯ ПАНЕЛИ ТАЙМЕРА */
+        .fixed-header {{
+            background-color: rgba(45, 53, 38, 0.98) !important;
+            border-bottom: 4px solid #556b2f !important;
+            border-left: none !important; /* Убираем левую полосу для верхней панели */
+        }}
+
+        /* Устранение стандартных межстрочных интервалов Streamlit */
+        [data-testid="stVerticalBlock"] {{
+            gap: 0rem !important;
+        }}
         </style>
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- 2. БЕЗОПАСНЫЕ ФУНКЦИИ ЧЕРНОВИКОВ ---
-def save_draft(name, questions, answers):
-    start_time_val = st.session_state.get('start_time', datetime.now())
-    start_time_str = start_time_val.isoformat() if isinstance(start_time_val, datetime) else str(start_time_val)
-    
-    draft_data = {"questions": questions, "answers": answers, "start_time": start_time_str}
-    filename = f"draft_{name.replace(' ', '_')}.json"
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(draft_data, f, ensure_ascii=False)
-    except: pass
-
-def load_draft(name):
-    filename = f"draft_{name.replace(' ', '_')}.json"
-    if not os.path.exists(filename): return None
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            draft = json.load(f)
-        st_time = draft.get('start_time')
-        draft['start_time'] = datetime.fromisoformat(st_time) if st_time else datetime.now()
-        return draft
-    except: return None
-
-def delete_draft(name):
-    if not name: return
-    filename = f"draft_{name.replace(' ', '_')}.json"
-    if os.path.exists(filename):
-        try: os.remove(filename)
-        except: pass
-
-# --- 3. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-def save_result_to_file(data):
-    file_exists = os.path.isfile(RESULTS_FILE)
-    df = pd.DataFrame([data])
-    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
-
-def get_grade(score, total):
-    if total == 0: return "0"
-    perc = (score / total) * 100
-    if perc >= 90: return "5 (Отлично)"
-    elif perc >= 75: return "4 (Хорошо)"
-    elif perc >= 50: return "3 (Удовл.)"
-    else: return "2 (Неуд.)"
-
-# --- 4. НАСТРОЙКИ И БАЗА ДАННЫХ ---
+# --- 1. НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
 set_png_as_page_bg('background.png')
 
-TEACHER_PIN = "2402"
+# --- 2. КОНСТАНТЫ ---
+TEACHER_PIN = "1234"
 RESULTS_FILE = "detailed_results.csv"
-TEST_DURATION_MIN = 15      
-QUESTIONS_LIMIT = 15
+TEST_DURATION_MIN = 15      # Таймер на 15 минут
+QUESTIONS_LIMIT = 15        # Выводить по 15 вопросов
 # --- 3. БАЗА ДАННЫХ ---
 DATABASE = {
     "10 класс": {
