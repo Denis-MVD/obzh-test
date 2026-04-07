@@ -7,7 +7,7 @@ import base64
 import json
 from streamlit_autorefresh import st_autorefresh
 
-# --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
+# --- 1. ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
@@ -63,14 +63,14 @@ def set_png_as_page_bg(bin_file):
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- ФУНКЦИИ: СОХРАНЕНИЕ ПРОГРЕССА (ЧЕРНОВИК) ---
+# --- 2. БЕЗОПАСНЫЕ ФУНКЦИИ ЧЕРНОВИКОВ ---
 def save_draft(name, questions, answers):
-    """Сохранение черновика с конвертацией времени в строку ISO"""
+    """Сохранение без ошибок JSON"""
     start_time_val = st.session_state.get('start_time')
     if isinstance(start_time_val, datetime):
         start_time_str = start_time_val.isoformat()
     else:
-        start_time_str = str(start_time_val)
+        start_time_str = str(start_time_val) if start_time_val else datetime.now().isoformat()
 
     draft_data = {
         "questions": questions,
@@ -85,38 +85,49 @@ def save_draft(name, questions, answers):
         pass
 
 def load_draft(name):
-    """Загрузка черновика с проверкой типа данных"""
+    """Безопасная загрузка времени"""
     filename = f"draft_{name.replace(' ', '_')}.json"
-    if os.path.exists(filename):
+    if not os.path.exists(filename):
+        return None
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            draft = json.load(f)
+        st_time = draft.get('start_time')
         try:
-            with open(filename, "r", encoding="utf-8") as f:
-                draft = json.load(f)
-            
-            # Проверка формата времени
-            st_time = draft.get('start_time')
             if isinstance(st_time, str) and st_time:
                 draft['start_time'] = datetime.fromisoformat(st_time)
-            elif not st_time:
+            else:
                 draft['start_time'] = datetime.now()
-                
-            return draft
         except Exception:
-            return None
-    return None
+            draft['start_time'] = datetime.now()
+        return draft
+    except Exception:
+        return None
 
 def delete_draft(name):
-    """Удаление черновика"""
     if not name: return
     filename = f"draft_{name.replace(' ', '_')}.json"
     if os.path.exists(filename):
         try: os.remove(filename)
         except: pass
 
-# --- 1. НАСТРОЙКА СТРАНИЦЫ ---
+# --- 3. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+def save_result_to_file(data):
+    file_exists = os.path.isfile(RESULTS_FILE)
+    df = pd.DataFrame([data])
+    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
+
+def get_grade(score, total):
+    perc = (score / total) * 100
+    if perc >= 90: return "5 (Отлично)"
+    elif perc >= 75: return "4 (Хорошо)"
+    elif perc >= 50: return "3 (Удовл.)"
+    else: return "2 (Неуд.)"
+
+# --- 4. НАСТРОЙКИ И КОНСТАНТЫ ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
 set_png_as_page_bg('background.png')
 
-# --- 2. КОНСТАНТЫ ---
 TEACHER_PIN = "2402"
 RESULTS_FILE = "detailed_results.csv"
 TEST_DURATION_MIN = 15      
@@ -408,24 +419,10 @@ DATABASE = {
         ]
     }
 }
-# --- 4. ФУНКЦИИ ---
-def save_result_to_file(data):
-    file_exists = os.path.isfile(RESULTS_FILE)
-    df = pd.DataFrame([data])
-    df.to_csv(RESULTS_FILE, mode='a', index=False, header=not file_exists, encoding='utf-8-sig')
-
-def get_grade(score, total):
-    perc = (score / total) * 100
-    if perc >= 90: return "5 (Отлично)"
-    elif perc >= 75: return "4 (Хорошо)"
-    elif perc >= 50: return "3 (Удовл.)"
-    else: return "2 (Неуд.)"
-
-# --- 5. ЛОГИКА СОСТОЯНИЙ ---
 if 'test_state' not in st.session_state: st.session_state.test_state = "login"
 if 'selected_class' not in st.session_state: st.session_state.selected_class = None
 
-# --- 6. ЭКРАН ВХОДА ---
+# --- 5. ЭКРАН ВХОДА ---
 if st.session_state.test_state == "login":
     st.markdown("<h4 style='text-align: center; color: #dcdcdc; margin: 0;'>Преподаватель по начальной военной и технической подготовке</h4>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: #ffffff; margin: 0;'>Семенков Денис Алексеевич</h3>", unsafe_allow_html=True)
@@ -447,7 +444,6 @@ if st.session_state.test_state == "login":
         for theme_name in themes.keys():
             if st.button(theme_name, use_container_width=True):
                 if name:
-                    # ПРОВЕРКА ЧЕРНОВИКА
                     draft = load_draft(name)
                     if draft:
                         st.session_state.name = name
@@ -455,12 +451,11 @@ if st.session_state.test_state == "login":
                         st.session_state.theme = theme_name
                         st.session_state.questions = draft['questions']
                         st.session_state.user_ans = draft['answers']
-                        st.session_state.start_time = datetime.fromisoformat(draft['start_time'])
+                        st.session_state.start_time = draft['start_time']
                         st.session_state.test_state = "testing"
                         st.session_state.results_saved = False
                         st.rerun()
                     else:
-                        # Если черновика нет — создаем новый тест
                         st.session_state.name = name
                         st.session_state.u_class = st.session_state.selected_class
                         st.session_state.theme = theme_name
@@ -468,7 +463,7 @@ if st.session_state.test_state == "login":
                         st.session_state.results_saved = False
                         
                         raw_q = themes[theme_name]
-                        num_to_select = min(len(raw_q), 15)
+                        num_to_select = min(len(raw_q), QUESTIONS_LIMIT)
                         selected_raw = random.sample(raw_q, num_to_select)
                         
                         shuffled = []
@@ -479,13 +474,12 @@ if st.session_state.test_state == "login":
                         st.session_state.questions = shuffled
                         st.session_state.user_ans = [None] * len(shuffled)
                         st.session_state.test_state = "testing"
-                        # Сразу создаем файл черновика
                         save_draft(name, st.session_state.questions, st.session_state.user_ans)
                         st.rerun()
                 else:
                     st.error("⚠️ Сначала введите Фамилию и Имя!")
 
-    # --- КАБИНЕТ ПРЕПОДАВАТЕЛЯ ---
+    # КАБИНЕТ ПРЕПОДАВАТЕЛЯ
     st.write("---")
     with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
         pin = st.text_input("Введите PIN-код для доступа:", type="password")
@@ -493,26 +487,14 @@ if st.session_state.test_state == "login":
             st.success("Доступ разрешен")
             if os.path.exists(RESULTS_FILE):
                 df_results = pd.read_csv(RESULTS_FILE)
-                if not df_results.empty:
-                    if st.button("🗑️ ОЧИСТИТЬ ВЕСЬ СПИСОК", use_container_width=True):
-                        os.remove(RESULTS_FILE)
-                        st.rerun()
+                if st.button("🗑️ ОЧИСТИТЬ ВЕСЬ СПИСОК", use_container_width=True):
+                    os.remove(RESULTS_FILE)
+                    st.rerun()
+                st.dataframe(df_results, use_container_width=True)
 
-                    for index, row in df_results.iterrows():
-                        c_info, c_btn = st.columns([4, 1])
-                        c_info.write(f"**{row['ФИО']}** | {row['Оценка']} ({row['Баллы']})")
-                        if c_btn.button("d", key=f"del_{index}"):
-                            df_new = df_results.drop(index)
-                            df_new.to_csv(RESULTS_FILE, index=False, encoding='utf-8-sig')
-                            st.rerun()
-                    
-                    st.write("---")
-                    st.dataframe(df_results, use_container_width=True)
-
-# --- 7. ТЕСТИРОВАНИЕ ---
+# --- 6. ТЕСТИРОВАНИЕ ---
 elif st.session_state.test_state == "testing":
     st_autorefresh(interval=1000, key="timer_refresh")
-    
     elapsed = datetime.now() - st.session_state.start_time
     rem = timedelta(minutes=TEST_DURATION_MIN) - elapsed
     
@@ -531,24 +513,16 @@ elif st.session_state.test_state == "testing":
         <div style="height: 110px;"></div>
     """, unsafe_allow_html=True)
 
-    # Важно: используем session_state.user_ans напрямую для сохранения
     for i, (q_text, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"#### Вопрос №{i+1}")
         st.write(q_text)
-        
         current_val = st.session_state.user_ans[i]
-        try:
-            old_index = opts.index(current_val) if current_val in opts else None
-        except:
-            old_index = None
+        old_index = opts.index(current_val) if current_val in opts else None
 
         ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=old_index, label_visibility="collapsed")
-        
-        # Автосохранение при клике
         if ans != st.session_state.user_ans[i]:
             st.session_state.user_ans[i] = ans
             save_draft(st.session_state.name, st.session_state.questions, st.session_state.user_ans)
-            
         st.markdown("---")
 
     if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
@@ -558,10 +532,9 @@ elif st.session_state.test_state == "testing":
             st.session_state.test_state = "finishing"
             st.rerun()
 
-# --- 8. ИТОГИ ---
+# --- 7. ИТОГИ ---
 elif st.session_state.test_state == "finishing":
     st.markdown("<h2 style='text-align: center;'>ИТОГИ</h2>", unsafe_allow_html=True)
-    
     user_ans = st.session_state.user_ans
     questions = st.session_state.questions
     score = sum(1 for i, (q, o, c) in enumerate(questions) if user_ans[i] == c)
@@ -577,7 +550,6 @@ elif st.session_state.test_state == "finishing":
             "Баллы": f"{score}/{total}",
             "Оценка": grade
         })
-        # Стираем черновик, так как тест успешно сдан
         delete_draft(st.session_state.name)
         st.session_state.results_saved = True
 
@@ -588,26 +560,9 @@ elif st.session_state.test_state == "finishing":
         </div>
     """, unsafe_allow_html=True)
 
-    st.write("### 🔍 Разбор:")
-    for i, (q_text, opts, correct) in enumerate(questions):
-        u_choice = user_ans[i]
-        correct_flag = "✅" if u_choice == correct else "❌"
-        with st.expander(f"{correct_flag} Вопрос №{i+1}"):
-            st.write(f"**{q_text}**")
-            st.write(f"Ваш ответ: {u_choice}")
-            if u_choice != correct:
-                st.info(f"Верный ответ: {correct}")
-
     if st.button("⬅️ В МЕНЮ", use_container_width=True):
-        # Полная очистка перед выходом
-        current_user = st.session_state.get('name', '')
-        delete_draft(current_user)
-        
-        # Список всех ключей, которые нужно сбросить
-        keys_to_clear = ['test_state', 'questions', 'user_ans', 'start_time', 
-                         'results_saved', 'name', 'selected_class', 'theme', 'u_class']
-        for k in keys_to_clear:
-            if k in st.session_state:
-                del st.session_state[k]
-        
+        delete_draft(st.session_state.get('name', ''))
+        keys = ['test_state', 'questions', 'user_ans', 'start_time', 'results_saved', 'name', 'selected_class', 'theme', 'u_class']
+        for k in keys:
+            if k in st.session_state: del st.session_state[k]
         st.rerun()
