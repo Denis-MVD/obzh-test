@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import os
 import base64
+import json
 from streamlit_autorefresh import st_autorefresh
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
@@ -19,21 +20,16 @@ def set_png_as_page_bg(bin_file):
     if bin_str:
         page_bg_img = f'''
         <style>
-        /* Основной фон всей страницы */
         .stApp {{
             background-image: url("data:image/png;base64,{bin_str}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
-        
-        /* Скрываем системные элементы Streamlit */
         #MainMenu {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
         
-        /* 1. СТИЛЬ ДЛЯ БЛОКОВ С КОНТЕНТОМ (Вопросы, кнопки, поля) */
-        /* Добавлены .fixed-header и .stMarkdown, чтобы важные элементы не исчезали */
         div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
             padding: 25px; 
@@ -44,8 +40,6 @@ def set_png_as_page_bg(bin_file):
             display: block !important;
         }}
 
-        /* 2. ПОЛНОЕ СКРЫТИЕ ПУСТЫХ КОНТЕЙНЕРОВ */
-        /* Находим блоки без контента и принудительно их убираем */
         div[data-testid="stVerticalBlock"] > div:not(:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown, p, span)) {{
             background: none !important;
             border: none !important;
@@ -56,20 +50,44 @@ def set_png_as_page_bg(bin_file):
             display: none !important;
         }}
 
-        /* 3. СПЕЦИАЛЬНОЕ ПРАВИЛО ДЛЯ ПАНЕЛИ ТАЙМЕРА */
         .fixed-header {{
             background-color: rgba(45, 53, 38, 0.98) !important;
             border-bottom: 4px solid #556b2f !important;
-            border-left: none !important; /* Убираем левую полосу для верхней панели */
+            border-left: none !important;
         }}
 
-        /* Устранение стандартных межстрочных интервалов Streamlit */
         [data-testid="stVerticalBlock"] {{
             gap: 0rem !important;
         }}
         </style>
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# --- НОВЫЕ ФУНКЦИИ: СОХРАНЕНИЕ ПРОГРЕССА (ЧЕРНОВИК) ---
+def save_draft(name, questions, answers):
+    """Сохраняет вопросы и текущие ответы ученика в файл"""
+    draft_data = {
+        "questions": questions,
+        "answers": answers,
+        "start_time": st.session_state.get('start_time', datetime.now().isoformat())
+    }
+    filename = f"draft_{name.replace(' ', '_')}.json"
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(draft_data, f, ensure_ascii=False)
+
+def load_draft(name):
+    """Загружает черновик, если он существует"""
+    filename = f"draft_{name.replace(' ', '_')}.json"
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+def delete_draft(name):
+    """Удаляет черновик после завершения теста"""
+    filename = f"draft_{name.replace(' ', '_')}.json"
+    if os.path.exists(filename):
+        os.remove(filename)
 
 # --- 1. НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
@@ -393,7 +411,7 @@ if st.session_state.test_state == "login":
     name = st.text_input("Фамилия и Имя ученика:")
     
     st.write("### Выберите класс:")
-    c1, col_empty, c2 = st.columns([2, 0.5, 2]) # Немного раздвинул кнопки
+    c1, col_empty, c2 = st.columns([2, 0.5, 2])
     if c1.button("10 КЛАСС 📘", use_container_width=True):
         st.session_state.selected_class = "10 класс"
     if c2.button("11 КЛАСС 📕", use_container_width=True):
@@ -406,47 +424,57 @@ if st.session_state.test_state == "login":
         for theme_name in themes.keys():
             if st.button(theme_name, use_container_width=True):
                 if name:
-                    st.session_state.name = name
-                    st.session_state.u_class = st.session_state.selected_class
-                    st.session_state.theme = theme_name
-                    st.session_state.start_time = datetime.now()
-                    st.session_state.results_saved = False
-                    
-                    # --- ЛОГИКА ВЫБОРА 15 ВОПРОСОВ ---
-                    raw_q = themes[theme_name]
-                    num_to_select = min(len(raw_q), 15)
-                    selected_raw = random.sample(raw_q, num_to_select)
-                    
-                    shuffled = []
-                    for q_text, opts, corr in selected_raw:
-                        sh_opts = random.sample(opts, len(opts))
-                        shuffled.append((q_text, sh_opts, corr))
-                    
-                    st.session_state.questions = shuffled
-                    st.session_state.test_state = "testing"
-                    st.rerun()
+                    # ПРОВЕРКА ЧЕРНОВИКА
+                    draft = load_draft(name)
+                    if draft:
+                        st.session_state.name = name
+                        st.session_state.u_class = st.session_state.selected_class
+                        st.session_state.theme = theme_name
+                        st.session_state.questions = draft['questions']
+                        st.session_state.user_ans = draft['answers']
+                        st.session_state.start_time = datetime.fromisoformat(draft['start_time'])
+                        st.session_state.test_state = "testing"
+                        st.session_state.results_saved = False
+                        st.rerun()
+                    else:
+                        # Если черновика нет — создаем новый тест
+                        st.session_state.name = name
+                        st.session_state.u_class = st.session_state.selected_class
+                        st.session_state.theme = theme_name
+                        st.session_state.start_time = datetime.now()
+                        st.session_state.results_saved = False
+                        
+                        raw_q = themes[theme_name]
+                        num_to_select = min(len(raw_q), 15)
+                        selected_raw = random.sample(raw_q, num_to_select)
+                        
+                        shuffled = []
+                        for q_text, opts, corr in selected_raw:
+                            sh_opts = random.sample(opts, len(opts))
+                            shuffled.append((q_text, sh_opts, corr))
+                        
+                        st.session_state.questions = shuffled
+                        st.session_state.user_ans = [None] * len(shuffled)
+                        st.session_state.test_state = "testing"
+                        # Сразу создаем файл черновика
+                        save_draft(name, st.session_state.questions, st.session_state.user_ans)
+                        st.rerun()
                 else:
                     st.error("⚠️ Сначала введите Фамилию и Имя!")
 
-    # --- КАБИНЕТ ПРЕПОДАВАТЕЛЯ (ВНУТРИ БЛОКА LOGIN) ---
+    # --- КАБИНЕТ ПРЕПОДАВАТЕЛЯ ---
     st.write("---")
     with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
         pin = st.text_input("Введите PIN-код для доступа:", type="password")
-        
         if pin == TEACHER_PIN:
             st.success("Доступ разрешен")
-            
             if os.path.exists(RESULTS_FILE):
                 df_results = pd.read_csv(RESULTS_FILE)
-                
                 if not df_results.empty:
-                    # Кнопка полного сброса
                     if st.button("🗑️ ОЧИСТИТЬ ВЕСЬ СПИСОК", use_container_width=True):
                         os.remove(RESULTS_FILE)
                         st.rerun()
 
-                    st.write("### Текущие результаты:")
-                    # Вывод списка построчно с кнопками удаления
                     for index, row in df_results.iterrows():
                         c_info, c_btn = st.columns([4, 1])
                         c_info.write(f"**{row['ФИО']}** | {row['Оценка']} ({row['Баллы']})")
@@ -457,10 +485,6 @@ if st.session_state.test_state == "login":
                     
                     st.write("---")
                     st.dataframe(df_results, use_container_width=True)
-                else:
-                    st.info("Список пуст")
-            else:
-                st.info("Файл результатов еще не создан")
 
 # --- 7. ТЕСТИРОВАНИЕ ---
 elif st.session_state.test_state == "testing":
@@ -471,35 +495,43 @@ elif st.session_state.test_state == "testing":
     
     if rem.total_seconds() <= 0:
         st.session_state.test_state = "finishing"
-        if 'user_ans' not in st.session_state:
-            st.session_state.user_ans = [None] * len(st.session_state.questions)
         st.rerun()
 
-    # Таймер
     m, s = divmod(int(rem.total_seconds()), 60)
     t_color = "#ff4b4b" if m < 3 else "#ffffff"
     
     st.markdown(f"""
-        <div style="position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 700px; background: rgba(45,53,38,0.98); padding: 15px; border-radius: 15px; border-bottom: 4px solid #556b2f; z-index: 1000; text-align: center;">
+        <div class="fixed-header" style="position: fixed; top: 30px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 700px; padding: 15px; border-radius: 15px; z-index: 1000; text-align: center;">
             <div style="color: #aaa; font-size: 14px;">👤 {st.session_state.name} | {st.session_state.theme}</div>
             <div style="color: {t_color}; font-size: 26px; font-weight: bold;">⏳ ОСТАЛОСЬ: {m:02d}:{s:02d}</div>
         </div>
         <div style="height: 110px;"></div>
     """, unsafe_allow_html=True)
 
-    current_answers = []
     for i, (q_text, opts, corr) in enumerate(st.session_state.questions):
         st.markdown(f"#### Вопрос №{i+1}")
         st.write(q_text)
-        ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=None, label_visibility="collapsed")
-        current_answers.append(ans)
+        
+        # Индекс для радиокнопки (если ответ уже был в черновике)
+        current_val = st.session_state.user_ans[i]
+        try:
+            old_index = opts.index(current_val) if current_val in opts else None
+        except:
+            old_index = None
+
+        ans = st.radio(f"Ответ {i}", opts, key=f"q_{i}", index=old_index, label_visibility="collapsed")
+        
+        # Сохраняем ответ при каждом изменении
+        if ans != st.session_state.user_ans[i]:
+            st.session_state.user_ans[i] = ans
+            save_draft(st.session_state.name, st.session_state.questions, st.session_state.user_ans)
+            
         st.markdown("---")
 
     if st.button("ЗАВЕРШИТЬ ТЕСТ ✅", use_container_width=True):
-        if None in current_answers:
+        if None in st.session_state.user_ans:
             st.warning("Ответьте на все вопросы!")
         else:
-            st.session_state.user_ans = current_answers
             st.session_state.test_state = "finishing"
             st.rerun()
 
@@ -522,6 +554,8 @@ elif st.session_state.test_state == "finishing":
             "Баллы": f"{score}/{total}",
             "Оценка": grade
         })
+        # После успешного сохранения удаляем черновик
+        delete_draft(st.session_state.name)
         st.session_state.results_saved = True
 
     st.markdown(f"""
@@ -542,6 +576,8 @@ elif st.session_state.test_state == "finishing":
                 st.info(f"Верный ответ: {correct}")
 
     if st.button("⬅️ В МЕНЮ", use_container_width=True):
+        # Перед удалением сессии убедимся, что черновик стерт
+        delete_draft(st.session_state.get('name', ''))
         for k in ['test_state', 'questions', 'user_ans', 'start_time', 'results_saved', 'name', 'selected_class']:
             if k in st.session_state: del st.session_state[k]
         st.rerun()
