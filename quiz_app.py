@@ -425,7 +425,7 @@ if st.session_state.test_state == "login":
                     for index, row in df_results.iterrows():
                         c_info, c_btn = st.columns([4, 1])
                         c_info.write(f"**{row['ФИО']}** | {row['Оценка']} ({row['Баллы']})")
-                        if c_btn.button("del", key=f"del_{index}"):
+                        if c_btn.button("d", key=f"del_{index}"):
                             df_new = df_results.drop(index)
                             df_new.to_csv(RESULTS_FILE, index=False, encoding='utf-8-sig')
                             st.rerun()
