@@ -1,113 +1,84 @@
 import streamlit as st
-
 import random
-
 from datetime import datetime, timedelta
-
 import pandas as pd
-
 import os
-
 import base64
-
 from streamlit_autorefresh import st_autorefresh
 
-
-
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С ФОНОМ ---
-
 def get_base64_of_bin_file(bin_file):
-
     if os.path.exists(bin_file):
-
         with open(bin_file, 'rb') as f:
-
             data = f.read()
-
         return base64.b64encode(data).decode()
-
     return None
 
-
-
 def set_png_as_page_bg(bin_file):
-
     bin_str = get_base64_of_bin_file(bin_file)
-
     if bin_str:
-
         page_bg_img = f'''
-
         <style>
-
+        /* Основной фон всей страницы */
         .stApp {{
-
             background-image: url("data:image/png;base64,{bin_str}");
-
             background-size: cover;
-
             background-position: center;
-
             background-attachment: fixed;
-
         }}
-
-        #MainMenu {{visibility: hidden;}}
-
-        footer {{visibility: hidden;}}
-
-        header {{visibility: hidden;}}
-
         
-
-        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stSelectbox, .stButton, .stExpander, p, span, .stMarkdown) {{
-
+        /* Скрываем системные элементы Streamlit */
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
+        header {{visibility: hidden;}}
+        
+        /* 1. СТИЛЬ ДЛЯ БЛОКОВ С КОНТЕНТОМ (Вопросы, кнопки, поля) */
+        /* Добавлены .fixed-header и .stMarkdown, чтобы важные элементы не исчезали */
+        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
-
             padding: 25px; 
-
             border-radius: 15px; 
-
             border-left: 10px solid #2f3526 !important;
-
             box-shadow: 10px 10px 25px rgba(0,0,0,0.6);
-
-            margin-bottom: 15px;
-
+            margin-bottom: 20px;
+            display: block !important;
         }}
 
-
-
-        div[data-testid="stVerticalBlock"] > div:not(:has(*)) {{
-
+        /* 2. ПОЛНОЕ СКРЫТИЕ ПУСТЫХ КОНТЕЙНЕРОВ */
+        /* Находим блоки без контента и принудительно их убираем */
+        div[data-testid="stVerticalBlock"] > div:not(:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown, p, span)) {{
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 0px !important;
             display: none !important;
-
         }}
 
+        /* 3. СПЕЦИАЛЬНОЕ ПРАВИЛО ДЛЯ ПАНЕЛИ ТАЙМЕРА */
+        .fixed-header {{
+            background-color: rgba(45, 53, 38, 0.98) !important;
+            border-bottom: 4px solid #556b2f !important;
+            border-left: none !important; /* Убираем левую полосу для верхней панели */
+        }}
+
+        /* Устранение стандартных межстрочных интервалов Streamlit */
+        [data-testid="stVerticalBlock"] {{
+            gap: 0rem !important;
+        }}
         </style>
-
         '''
-
         st.markdown(page_bg_img, unsafe_allow_html=True)
 
-
-
 # --- 1. НАСТРОЙКА СТРАНИЦЫ ---
-
 st.set_page_config(page_title="НВП: Контроль", layout="centered", page_icon="🎖️")
-
 set_png_as_page_bg('background.png')
 
-
-
 # --- 2. КОНСТАНТЫ ---
-
 TEACHER_PIN = "1234"
-
 RESULTS_FILE = "detailed_results.csv"
-
-TEST_DURATION_MIN = 15      # Таймер на 15 минут по твоему запросу
-
+TEST_DURATION_MIN = 15      # Таймер на 15 минут
 QUESTIONS_LIMIT = 15        # Выводить по 15 вопросов
 # --- 3. БАЗА ДАННЫХ ---
 DATABASE = {
