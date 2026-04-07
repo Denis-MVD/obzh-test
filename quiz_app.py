@@ -65,9 +65,8 @@ def set_png_as_page_bg(bin_file):
 
 # --- ФУНКЦИИ: СОХРАНЕНИЕ ПРОГРЕССА (ЧЕРНОВИК) ---
 def save_draft(name, questions, answers):
-    """Исправленная функция сохранения (без ошибок JSON)"""
+    """Сохранение черновика с конвертацией времени в строку ISO"""
     start_time_val = st.session_state.get('start_time')
-    # Конвертируем время в строку для JSON
     if isinstance(start_time_val, datetime):
         start_time_str = start_time_val.isoformat()
     else:
@@ -86,14 +85,20 @@ def save_draft(name, questions, answers):
         pass
 
 def load_draft(name):
-    """Загрузка черновика с обратной конвертацией времени"""
+    """Загрузка черновика с проверкой типа данных"""
     filename = f"draft_{name.replace(' ', '_')}.json"
     if os.path.exists(filename):
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 draft = json.load(f)
-            if draft.get('start_time'):
-                draft['start_time'] = datetime.fromisoformat(draft['start_time'])
+            
+            # Проверка формата времени
+            st_time = draft.get('start_time')
+            if isinstance(st_time, str) and st_time:
+                draft['start_time'] = datetime.fromisoformat(st_time)
+            elif not st_time:
+                draft['start_time'] = datetime.now()
+                
             return draft
         except Exception:
             return None
