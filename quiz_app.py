@@ -405,11 +405,48 @@ if st.session_state.test_state == "login":
                 else:
                     st.error("⚠️ Сначала введите Фамилию и Имя!")
 
-    with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
-        pin = st.text_input("PIN:", type="password")
+   with st.expander("📊 КАБИНЕТ ПРЕПОДАВАТЕЛЯ"):
+        pin = st.text_input("Введите PIN-код для доступа:", type="password")
+        
         if pin == TEACHER_PIN:
+            st.success("Доступ разрешен")
+            
             if os.path.exists(RESULTS_FILE):
-                st.dataframe(pd.read_csv(RESULTS_FILE), use_container_width=True)
+                # Читаем данные
+                df_results = pd.read_csv(RESULTS_FILE)
+                
+                if not df_results.empty:
+                    st.write("### Список результатов:")
+                    
+                    # --- КНОПКА ПОЛНОГО СБРОСА ---
+                    if st.button("🗑️ ОЧИСТИТЬ ВСЕ РЕЗУЛЬТАТЫ", use_container_width=True):
+                        os.remove(RESULTS_FILE)
+                        st.cache_data.clear()
+                        st.rerun()
+
+                    st.write("---")
+
+                    # --- СПИСОК ПО ОТДЕЛЬНОСТИ ---
+                    # Используем циклы для создания кнопок удаления напротив каждой строки
+                    for index, row in df_results.iterrows():
+                        col_info, col_del = st.columns([4, 1])
+                        with col_info:
+                            st.write(f"**{row['ФИО']}** | {row['Класс']} | {row['Оценка']} ({row['Баллы']})")
+                        with col_del:
+                            # Уникальный ключ для каждой кнопки удаления
+                            if st.button("Удалить", key=f"del_{index}"):
+                                df_updated = df_results.drop(index)
+                                df_updated.to_csv(RESULTS_FILE, index=False, encoding='utf-8-sig')
+                                st.rerun()
+                    
+                    st.write("---")
+                    # Отображение общей таблицы для копирования (опционально)
+                    with st.container():
+                        st.dataframe(df_results, use_container_width=True)
+                else:
+                    st.info("Список результатов пока пуст.")
+            else:
+                st.info("Файл результатов еще не создан.")
 
 # --- 7. ТЕСТИРОВАНИЕ (ВЫВОД ВСЕХ 15 ВОПРОСОВ СРАЗУ) ---
 elif st.session_state.test_state == "testing":
