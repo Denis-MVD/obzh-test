@@ -27,14 +27,14 @@ def set_png_as_page_bg(bin_file):
             background-attachment: fixed;
         }}
         
-        /* Скрываем лишние элементы интерфейса Streamlit */
+        /* Скрываем системные элементы */
         #MainMenu {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
         
-        /* 1. СТИЛЬ ДЛЯ БЛОКОВ С КОНТЕНТОМ (Вопросы, кнопки, поля) */
-        /* Мы убрали p и span из селектора, чтобы не подсвечивать пустые строки */
-        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError) {{
+        /* 1. СТИЛЬ ДЛЯ БЛОКОВ С КОНТЕНТОМ */
+        /* Добавлены .fixed-header и .stMarkdown, чтобы таймер и вопросы не пропадали */
+        div[data-testid="stVerticalBlock"] > div:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown) {{
             background-color: rgba(61, 68, 50, 0.85) !important;
             padding: 25px; 
             border-radius: 15px; 
@@ -44,9 +44,8 @@ def set_png_as_page_bg(bin_file):
             display: block !important;
         }}
 
-        /* 2. ПОЛНОЕ СКРЫТИЕ ПУСТЫХ КОНТЕЙНЕРОВ */
-        /* Если в блоке нет ключевых элементов, он становится невидимым и не занимает места */
-        div[data-testid="stVerticalBlock"] > div:not(:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError)) {{
+        /* 2. ПОЛНОЕ СКРЫТИЕ ПУСТЫХ ТЕХНИЧЕСКИХ КОНТЕЙНЕРОВ */
+        div[data-testid="stVerticalBlock"] > div:not(:has(h1, h2, h3, h4, .stTextInput, .stButton, .stExpander, .stRadio, .stInfo, .stSuccess, .stError, .fixed-header, .stMarkdown, p, span)) {{
             background: none !important;
             border: none !important;
             box-shadow: none !important;
@@ -56,7 +55,14 @@ def set_png_as_page_bg(bin_file):
             display: none !important;
         }}
 
-        /* 3. УСТРАНЕНИЕ СТАНДАРТНЫХ МЕЖСТРОЧНЫХ ИНТЕРВАЛОВ */
+        /* 3. СПЕЦИАЛЬНОЕ ПРАВИЛО ДЛЯ ЗАКРЕПЛЕННОГО ТАЙМЕРА */
+        .fixed-header {{
+            background-color: rgba(45, 53, 38, 0.98) !important;
+            border-bottom: 4px solid #556b2f !important;
+            border-left: none !important; /* Убираем левую полосу, чтобы не портить вид панели */
+        }}
+
+        /* Убираем стандартные интервалы Streamlit */
         [data-testid="stVerticalBlock"] {{
             gap: 0rem !important;
         }}
